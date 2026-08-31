@@ -4,6 +4,7 @@
   "private": true,
   "description": "Evidence-backed, hash-verifiable research intelligence for autonomous agents on Telegraph.",
   "license": "Apache-2.0",
+  "type": "module",
   "engines": {
     "node": "^22.0.0 || ^24.0.0 || ^26.0.0"
   },
@@ -15,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "telegraph:validate": "node scripts/validate-telegraph.mjs",
     "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
@@ -32,11 +34,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
+    "@types/js-yaml": "4.0.9",
     "@types/node": "24.10.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.3",
+    "js-yaml": "5.4.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vitest": "4.1.11"

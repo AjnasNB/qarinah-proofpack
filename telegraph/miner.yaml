@@ -1,0 +1,533 @@
+version: "1"
+kind: miner
+id: 717190
+slug: qarinah-proofpack
+protocol: generic
+name: Qarinah ProofPack
+description: >-
+  Evidence-backed, hash-verifiable web research for autonomous agents. Qarinah
+  ProofPack returns a verdict, deterministic confidence components, supporting
+  and refuting evidence, contradictions, content hashes, a Qarinah provenance
+  chain, and a Maqam-governed abstention decision when evidence is insufficient.
+base_url: "${PROOFPACK_PUBLIC_URL}"
+
+docs:
+  website: https://github.com/AjnasNB/qarinah-proofpack
+  documentation: https://github.com/AjnasNB/qarinah-proofpack#api
+  repository: https://github.com/AjnasNB/qarinah-proofpack
+
+auth:
+  type: none
+
+rate_limit_per_sec: 2
+cache_ttl_sec: 0
+circuit_threshold: 5
+circuit_cooldown_seconds: 30
+
+endpoints:
+  - path: /v1/proof
+    external_path: /v1/proof
+    method: POST
+    content_type: application/json
+    description: >-
+      Fact-check a supplied claim or synthesize a research question from live
+      web evidence. Returns a sealed ProofPack with provenance, source hashes,
+      contradictions, deterministic score components, and explicit abstention.
+    intents:
+      - FACT_CHECK
+      - RESEARCH_SYNTHESIS
+    params:
+      body:
+        required:
+          - name: query
+            type: string
+            intents:
+              - "*"
+            description: >-
+              The concrete claim to verify or research question to synthesize.
+              Must be nonblank and no longer than 2048 Unicode characters.
+
+input_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - query
+  properties:
+    query:
+      type: string
+      minLength: 3
+      maxLength: 2048
+      description: The concrete claim or research question to investigate.
+    intent:
+      type: string
+      enum:
+        - FACT_CHECK
+        - RESEARCH_SYNTHESIS
+      description: Optional explicit intent; otherwise the service infers it from the query.
+    request_id:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: Optional caller-supplied correlation identifier.
+    as_of:
+      type:
+        - string
+        - "null"
+      format: date-time
+      description: Optional ISO-8601 evidence cutoff timestamp, or null for current evidence.
+
+output_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - schema_version
+    - pack_id
+    - request
+    - generated_at
+    - verdict
+    - confidence
+    - answer
+    - coverage_score
+    - freshness_score
+    - conflict_score
+    - score_breakdown
+    - claims
+    - evidence
+    - contradictions
+    - policy
+    - qarinah
+    - abstained
+    - reason
+    - verification
+  properties:
+    schema_version:
+      type: string
+      const: qarinah.proofpack.v1
+    pack_id:
+      type: string
+      minLength: 1
+    request:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        intent:
+          type: string
+          enum:
+            - FACT_CHECK
+            - RESEARCH_SYNTHESIS
+        request_id:
+          type: string
+        as_of:
+          type:
+            - string
+            - "null"
+          format: date-time
+    generated_at:
+      type: string
+      format: date-time
+    verdict:
+      type: string
+      enum:
+        - SUPPORTED
+        - REFUTED
+        - MIXED
+        - INSUFFICIENT_EVIDENCE
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+    answer:
+      type: string
+    coverage_score:
+      type: number
+      minimum: 0
+      maximum: 1
+    freshness_score:
+      type: number
+      minimum: 0
+      maximum: 1
+    conflict_score:
+      type: number
+      minimum: 0
+      maximum: 1
+    score_breakdown:
+      type: object
+      additionalProperties: false
+      required:
+        - entailment
+        - source_diversity
+        - evidence_coverage
+        - freshness
+        - source_agreement
+        - conflict_score
+        - confidence
+      properties:
+        entailment:
+          type: number
+          minimum: 0
+          maximum: 1
+        source_diversity:
+          type: number
+          minimum: 0
+          maximum: 1
+        evidence_coverage:
+          type: number
+          minimum: 0
+          maximum: 1
+        freshness:
+          type: number
+          minimum: 0
+          maximum: 1
+        source_agreement:
+          type: number
+          minimum: 0
+          maximum: 1
+        conflict_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+    claims:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - claim
+          - verdict
+          - confidence
+          - evidence_ids
+          - supporting_evidence_ids
+          - refuting_evidence_ids
+        properties:
+          id:
+            type: string
+          claim:
+            type: string
+          verdict:
+            type: string
+            enum:
+              - SUPPORTED
+              - REFUTED
+              - MIXED
+              - INSUFFICIENT_EVIDENCE
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+          evidence_ids:
+            type: array
+            items:
+              type: string
+          supporting_evidence_ids:
+            type: array
+            items:
+              type: string
+          refuting_evidence_ids:
+            type: array
+            items:
+              type: string
+    evidence:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - url
+          - canonical_url
+          - title
+          - excerpt
+          - retrieved_at
+          - published_at
+          - content_hash
+          - evidence_hash
+          - source_domain
+          - source_type
+          - stance
+          - relevance
+          - quality
+          - freshness
+          - supports
+          - refutes
+          - untrusted
+        properties:
+          id:
+            type: string
+          url:
+            type: string
+            format: uri
+          canonical_url:
+            type: string
+            format: uri
+          title:
+            type: string
+          excerpt:
+            type: string
+          retrieved_at:
+            type: string
+            format: date-time
+          published_at:
+            type:
+              - string
+              - "null"
+            format: date-time
+          content_hash:
+            type: string
+            pattern: "^sha256:[0-9a-f]{64}$"
+          evidence_hash:
+            type: string
+            pattern: "^sha256:[0-9a-f]{64}$"
+          source_domain:
+            type: string
+          source_type:
+            type: string
+            enum:
+              - official
+              - government
+              - academic
+              - news
+              - primary
+              - secondary
+              - crawler
+              - rendered
+              - other
+          stance:
+            type: string
+            enum:
+              - SUPPORTS
+              - REFUTES
+              - MIXED
+              - NEUTRAL
+          relevance:
+            type: number
+            minimum: 0
+            maximum: 1
+          quality:
+            type: number
+            minimum: 0
+            maximum: 1
+          freshness:
+            type: number
+            minimum: 0
+            maximum: 1
+          supports:
+            type: boolean
+          refutes:
+            type: boolean
+          untrusted:
+            type: boolean
+            const: true
+    contradictions:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - claim_id
+          - description
+          - evidence_ids
+          - severity
+          - unresolved
+        properties:
+          id:
+            type: string
+          claim_id:
+            type: string
+          description:
+            type: string
+          evidence_ids:
+            type: array
+            items:
+              type: string
+          severity:
+            type: number
+            minimum: 0
+            maximum: 1
+          unresolved:
+            type: boolean
+    policy:
+      type: object
+      additionalProperties: false
+      required:
+        - policy_id
+        - passed
+        - abstained
+        - final_verdict
+        - independent_sources
+        - minimum_independent_sources
+        - coverage_threshold
+        - confidence_threshold
+        - rules_triggered
+        - reason
+      properties:
+        policy_id:
+          type: string
+          const: maqam.evidence-contract.v1
+        passed:
+          type: boolean
+        abstained:
+          type: boolean
+        final_verdict:
+          type: string
+          enum:
+            - SUPPORTED
+            - REFUTED
+            - MIXED
+            - INSUFFICIENT_EVIDENCE
+        independent_sources:
+          type: integer
+          minimum: 0
+        minimum_independent_sources:
+          type: integer
+          minimum: 1
+        coverage_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        rules_triggered:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+    qarinah:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - workspace_id
+        - events
+        - event_count
+        - head_hash
+      properties:
+        schema_version:
+          type: string
+          const: qarinah.proof-chain.v1
+        workspace_id:
+          type: string
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            description: A canonical qarinah.event.v1 envelope validated by Qarinah.
+        event_count:
+          type: integer
+          minimum: 1
+        head_hash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+    abstained:
+      type: boolean
+    reason:
+      type: string
+    verification:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - algorithm
+        - canonicalization
+        - manifest_scope
+        - manifest_hash
+        - event_chain_head
+        - event_count
+      properties:
+        schema_version:
+          type: string
+          const: qarinah.proof-verification.v1
+        algorithm:
+          type: string
+          const: SHA-256
+        canonicalization:
+          type: string
+          const: proofpack.canonical-json.v1
+        manifest_scope:
+          type: string
+          const: proofpack-without-verification
+        manifest_hash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        event_chain_head:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        event_count:
+          type: integer
+          minimum: 1
+
+semantics:
+  signal_mapping:
+    confidence_field: confidence
+    label_field: verdict
+    reason_field: reason
+  supported_intents:
+    - FACT_CHECK
+    - RESEARCH_SYNTHESIS
+
+on_chain:
+  transform: direct
+  min_price_usdc: 0.01
+  fields:
+    strings:
+      - index: 0
+        name: verdict
+        description: The final evidence-policy verdict.
+        source_path: verdict
+      - index: 1
+        name: pack_id
+        description: Stable identifier for the sealed ProofPack.
+        source_path: pack_id
+      - index: 2
+        name: manifest_hash
+        description: SHA-256 seal over the canonical ProofPack payload.
+        source_path: verification.manifest_hash
+      - index: 3
+        name: event_chain_head
+        description: SHA-256 head of the embedded Qarinah evidence-event chain.
+        source_path: verification.event_chain_head
+    integers:
+      - index: 0
+        name: confidence_x10000
+        description: Deterministic confidence multiplied by 10000.
+        source_path: confidence
+        multiplier: 10000
+      - index: 1
+        name: coverage_x10000
+        description: Evidence coverage multiplied by 10000.
+        source_path: coverage_score
+        multiplier: 10000
+      - index: 2
+        name: freshness_x10000
+        description: Evidence freshness multiplied by 10000.
+        source_path: freshness_score
+        multiplier: 10000
+      - index: 3
+        name: conflict_x10000
+        description: Evidence conflict multiplied by 10000.
+        source_path: conflict_score
+        multiplier: 10000
+    bools:
+      - index: 0
+        name: abstained
+        description: True when Maqam blocks a decisive answer.
+        source_path: abstained
+  request:
+    - endpoint: proof
+      method: POST
+      body:
+        query:
+          source: strings.0
