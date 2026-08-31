@@ -27,7 +27,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: "PAYLOAD_TOO_LARGE", message: "The ProofPack is too large to verify here." } }, { status: 413, headers });
   }
 
-  const raw = await request.text();
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return NextResponse.json({ error: { code: "INVALID_BODY", message: "The request body could not be read." } }, { status: 400, headers });
+  }
   if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
     return NextResponse.json({ error: { code: "PAYLOAD_TOO_LARGE", message: "The ProofPack is too large to verify here." } }, { status: 413, headers });
   }

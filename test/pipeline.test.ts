@@ -49,6 +49,22 @@ describe("ProofPack pipeline", () => {
     expect(verifyProofPack(pack).valid).toBe(true);
   });
 
+  it("fails closed when every dated source falls after the requested cutoff", async () => {
+    const evidence = [1, 2].map((index) => candidate(
+      index,
+      "Python was first released in 1991, according to the published language history.",
+    ));
+    const pack = await buildProofPack({
+      query: "Python was first released in 1991",
+      intent: "FACT_CHECK",
+      as_of: "2020-01-01T00:00:00.000Z",
+    }, { evidence });
+
+    expect(pack.verdict).toBe("INSUFFICIENT_EVIDENCE");
+    expect(pack.evidence).toEqual([]);
+    expect(verifyProofPack(pack).valid).toBe(true);
+  });
+
   it("links material support and refutation as a contradiction", async () => {
     const query = "Product Y was released in August 2026";
     const evidence = [

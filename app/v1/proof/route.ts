@@ -44,7 +44,7 @@ export function OPTIONS() {
 }
 
 export async function POST(request: Request) {
-  const rateLimit = checkRateLimit(clientKey(request), { limit: 12, windowMs: 60_000 });
+  const rateLimit = checkRateLimit(clientKey(request), { limit: 120, windowMs: 60_000 });
   const headers = responseHeaders(rateLimit);
   if (!rateLimit.allowed) {
     return errorResponse(429, "RATE_LIMITED", "Too many proof requests. Retry after the rate-limit window resets.", headers);
@@ -89,12 +89,26 @@ export async function POST(request: Request) {
     return errorResponse(422, "INVALID_QUERY", "The normalized query must contain at least three characters.", headers);
   }
 
+  const requestId = parsed.data.request_id
+    ?.normalize("NFKC")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (parsed.data.request_id !== undefined && !requestId) {
+    return errorResponse(422, "INVALID_REQUEST_ID", "The normalized request_id must not be empty.", headers);
+  }
+
   try {
     const signal = AbortSignal.timeout(50_000);
-    const pack = await buildProofPack({ ...parsed.data, query }, { signal });
+    const pack = await buildProofPack({
+      ...parsed.data,
+      query,
+      ...(requestId === undefined ? {} : { request_id: requestId }),
+      ...(parsed.data.as_of ? { as_of: new Date(parsed.data.as_of).toISOString() } : {}),
+    }, { signal });
     return NextResponse.json(pack, { status: 200, headers });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "The ProofPack pipeline failed safely.";
-    return errorResponse(500, "PROOF_PIPELINE_ERROR", message.slice(0, 500), headers);
+    console.error("[proofpack] pipeline failed to seal a response", error);
+    return errorResponse(500, "PROOF_PIPELINE_ERROR", "The ProofPack pipeline failed safely before emitting a result.", headers);
   }
 }

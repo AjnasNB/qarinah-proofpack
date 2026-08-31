@@ -76,6 +76,40 @@ describe("scoreEvidence", () => {
     expect(score.sourceDiversity).toBe(0.25);
     expect(score.confidence).toBeLessThan(0.7);
   });
+
+  it("does not treat unrelated sentence negation as claim refutation", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2021?",
+      [{
+        url: "https://science.nasa.gov/mission/webb/",
+        domain: "nasa.gov",
+        excerpt: "The James Webb Space Telescope launched on December 25, 2021. It does not orbit Earth like the Hubble Space Telescope.",
+        relevance: 0.95,
+        quality: 0.98,
+        freshness: 0.7
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("SUPPORT");
+    expect(score.refuteWeight).toBe(0);
+  });
+
+  it("treats an incompatible reported year as refuting evidence", () => {
+    const score = scoreEvidence(
+      "The James Webb Space Telescope launched in 2020",
+      [{
+        url: "https://science.nasa.gov/mission/webb/",
+        domain: "nasa.gov",
+        excerpt: "The James Webb Space Telescope launched on December 25, 2021.",
+        relevance: 0.92,
+        quality: 0.98,
+        freshness: 0.7
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("REFUTE");
+    expect(score.winner).toBe("REFUTE");
+  });
 });
 
 describe("tokenizeClaim", () => {

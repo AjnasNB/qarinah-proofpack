@@ -74,6 +74,42 @@ function hasNegation(value: string): boolean {
   return NEGATION_PATTERNS.some((pattern) => pattern.test(value));
 }
 
+function stanceWindow(value: string, claimTerms: readonly string[]): string {
+  const fragments = value
+    .normalize("NFKC")
+    .split(/(?<=[.!?])\s+|[\r\n]+/u)
+    .map((fragment) => fragment.trim())
+    .filter(Boolean);
+  if (!fragments.length || !claimTerms.length) return value;
+  let best = fragments[0];
+  let bestMatches = -1;
+  for (const fragment of fragments) {
+    const lower = fragment.toLocaleLowerCase("en-US");
+    const matches = claimTerms.reduce((count, term) => count + (lower.includes(term) ? 1 : 0), 0);
+    if (matches > bestMatches) {
+      best = fragment;
+      bestMatches = matches;
+    }
+  }
+  return bestMatches >= Math.min(2, Math.max(1, claimTerms.length)) ? best : value;
+}
+
+function years(value: string): Set<string> {
+  return new Set(value.match(/\b(?:1\d{3}|20\d{2})\b/gu) ?? []);
+}
+
+function relevantYears(value: string, claimTerms: readonly string[]): Set<string> {
+  const found = new Set<string>();
+  const minimumMatches = Math.min(2, Math.max(1, claimTerms.length));
+  for (const fragment of value.split(/(?<=[.!?])\s+|[\r\n]+/u)) {
+    const lower = fragment.toLocaleLowerCase("en-US");
+    const matches = claimTerms.reduce((count, term) => count + (lower.includes(term) ? 1 : 0), 0);
+    if (matches < minimumMatches) continue;
+    for (const year of years(fragment)) found.add(year);
+  }
+  return found;
+}
+
 function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: string[]): ScoredCandidate {
   const excerpt = candidate.excerpt.normalize("NFKC");
   const excerptLower = excerpt.toLocaleLowerCase("en-US");
@@ -81,16 +117,33 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   const lexicalCoverage = claimTerms.length ? matchedTerms.length / claimTerms.length : 0;
   const relevance = clamp(Math.max(candidate.relevance, lexicalCoverage));
   const claimNegative = hasNegation(query);
-  const evidenceNegative = hasNegation(excerpt);
-  const explicitSupport = SUPPORT_PATTERNS.some((pattern) => pattern.test(excerpt));
+  const localEvidence = stanceWindow(excerpt, claimTerms);
+  const evidenceNegative = hasNegation(localEvidence);
+  const explicitSupport = SUPPORT_PATTERNS.some((pattern) => pattern.test(localEvidence));
+  const claimYears = years(query);
+  const localYears = years(localEvidence);
+  const evidenceYears = localYears.size ? localYears : relevantYears(excerpt, claimTerms);
+  const matchingYear = claimYears.size === 0
+    || [...claimYears].some((year) => evidenceYears.has(year));
+  const yearConflict = claimYears.size > 0
+    && evidenceYears.size > 0
+    && !matchingYear;
+  const lexicalSupport = lexicalCoverage >= 0.75;
+  const supportSufficient = matchingYear
+    && (explicitSupport || evidenceNegative || (claimYears.size === 0 && lexicalSupport));
 
   let stance: ScoredStance = "UNCERTAIN";
   let stanceScore = 0.25 + relevance * 0.25;
 
-  if (relevance >= 0.34 && evidenceNegative !== claimNegative) {
+  if (relevance >= 0.34 && yearConflict) {
+    stance = claimNegative ? "SUPPORT" : "REFUTE";
+    stanceScore = localYears.size
+      ? 0.68 + relevance * 0.28
+      : 0.48 + relevance * 0.2;
+  } else if (relevance >= 0.34 && evidenceNegative !== claimNegative) {
     stance = "REFUTE";
     stanceScore = 0.58 + relevance * 0.36;
-  } else if (relevance >= 0.34 && evidenceNegative === claimNegative) {
+  } else if (relevance >= 0.34 && evidenceNegative === claimNegative && supportSufficient) {
     stance = "SUPPORT";
     stanceScore = (explicitSupport || evidenceNegative ? 0.62 : 0.52) + relevance * 0.34;
   }

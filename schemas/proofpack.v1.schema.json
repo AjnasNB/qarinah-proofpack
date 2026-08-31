@@ -100,7 +100,7 @@
       "additionalProperties": false,
       "required": ["query"],
       "properties": {
-        "query": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "query": { "type": "string", "minLength": 3, "maxLength": 2048 },
         "intent": { "enum": ["FACT_CHECK", "RESEARCH_SYNTHESIS"] },
         "request_id": { "type": "string", "minLength": 1, "maxLength": 256 },
         "as_of": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }

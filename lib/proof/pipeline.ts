@@ -65,6 +65,19 @@ function rounded(value: number): number {
   return Math.round(Math.max(0, Math.min(1, value)) * 10_000) / 10_000;
 }
 
+function enforceEvidenceCutoff(
+  candidates: readonly EvidenceCandidate[],
+  asOf: string | null | undefined,
+): EvidenceCandidate[] {
+  if (!asOf) return [...candidates];
+  const cutoff = new Date(asOf).valueOf();
+  return candidates.filter((candidate) => {
+    if (!candidate.publishedAt) return false;
+    const published = new Date(candidate.publishedAt).valueOf();
+    return Number.isFinite(published) && published <= cutoff;
+  });
+}
+
 function sourceType(candidate: EvidenceCandidate): SourceType {
   const host = new URL(candidate.canonical).hostname.toLowerCase();
   const domain = getDomain(host) ?? host;
@@ -200,9 +213,10 @@ export async function buildProofPack(
     ? { candidates: [...options.evidence], discovery: null, acquisition: null, error: null }
     : await acquireEvidence(request.query, options.signal);
 
-  const score = scoreEvidence(request.query, acquired.candidates);
+  const eligibleCandidates = enforceEvidenceCutoff(acquired.candidates, request.as_of);
+  const score = scoreEvidence(request.query, eligibleCandidates);
   const policy = applyProofPolicy(score);
-  const evidence = evidenceItems(acquired.candidates, score);
+  const evidence = evidenceItems(eligibleCandidates, score);
   const claim = proofClaim(request, evidence, score, policy.verdict);
   const conflicts = contradictions(claim, score);
   const synthesis = await synthesizeAnswer({

@@ -109,11 +109,12 @@ function checkString(
   value: unknown,
   path: string,
   add: (code: VerificationErrorCode, path: string, message: string) => void,
-  options: { allowEmpty?: boolean; maximum?: number } = {},
+  options: { allowEmpty?: boolean; minimum?: number; maximum?: number } = {},
 ): value is string {
+  const minimum = options.allowEmpty ? 0 : (options.minimum ?? 1);
   const maximum = options.maximum ?? 65_536;
-  if (typeof value !== "string" || (!options.allowEmpty && value.trim() === "") || value.length > maximum) {
-    add("INVALID_CONTRACT", path, `Expected ${options.allowEmpty ? "a" : "a non-empty"} string up to ${maximum} characters.`);
+  if (typeof value !== "string" || value.trim().length < minimum || value.length > maximum) {
+    add("INVALID_CONTRACT", path, `Expected a string from ${minimum} through ${maximum} characters.`);
     return false;
   }
   return true;
@@ -266,7 +267,7 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
 
   if (isRecord(pack.request)) {
     checkKeys(pack.request, ["query", "intent", "request_id", "as_of"], ["query"], "$.request", add);
-    checkString(pack.request.query, "$.request.query", add, { maximum: 2_048 });
+    checkString(pack.request.query, "$.request.query", add, { minimum: 3, maximum: 2_048 });
     if (pack.request.intent !== undefined && !INTENTS.has(pack.request.intent as string)) {
       add("INVALID_CONTRACT", "$.request.intent", "Unsupported Telegraph intent.");
     }
