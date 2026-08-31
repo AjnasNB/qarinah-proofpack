@@ -21,13 +21,17 @@ The primary submission is a Telegraph **Track 3 Application**. A proposed action
 1. Telegraph routes a paid request to a real ranked Miner.
 2. ProofGate requests independent live signals when the policy requires corroboration.
 3. Qarinah preserves each Miner identity, `signal_hash`, result hash, payment-receipt hash, and event relationship.
-4. Maqam applies a deterministic, bounded policy.
-5. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a downloadable SHA-256 receipt.
+4. ProofGate evaluates a deterministic, bounded evidence policy.
+5. Maqam enforces the final tool-authorization boundary before any `ALLOW`.
+6. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a downloadable SHA-256 receipt.
 
 Production never substitutes local or mocked intelligence. Missing wallet configuration, payment failure, unavailable Telegraph service, insufficient mapped-confidence corroboration, ambiguous policy, or insufficient distinct Miners can only reduce authority to `ESCALATE`.
 
 > [!NOTE]
 > Qarinah ProofPack remains a separate supporting Track 1 Miner and is available at `/proofpack`. As of August 31, 2026, the deployed endpoint is live but Miner ID `717190` is not yet registered or active in Telegraph's live catalog. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
+
+> [!WARNING]
+> The deployed ProofGate payer is not configured yet, and the current live catalog has not been proven to satisfy the default policy with two compatible, directionally aligned confidence mappings. Until a funded run returns retained verified receipts, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
 
 ## ProofGate preflight contract
 
@@ -50,7 +54,7 @@ The response conforms to [`proofgate.preflight.v1`](schemas/proofgate.preflight.
 | `claims[]` | Extracted claim assessments and signal links |
 | `compiled_policy` | Parsed thresholds, recognized constraints, unsupported clauses, and policy hash |
 | `aggregate` | Mean catalog-mapped confidence from distinct Miners aligned with the dominant stance, unique Miner count, verified signals, conflicts, and paid cost |
-| `rules[]` | Rule-by-rule Maqam evaluation |
+| `rules[]` | Rule-by-rule ProofGate evidence-policy evaluation, including the final Maqam boundary |
 | `signals[]` | Miner ID, route mode, intent, route rank, provider confidence if present, `signal_hash`, and result hash |
 | `qarinah` | Hash-linked preflight event chain |
 | `receipt` | Canonical SHA-256 receipt root and signal commitments |
@@ -82,7 +86,9 @@ Telegraph answers: **which intelligence provider should receive this request?**
 
 Qarinah answers: **what evidence and provenance produced this decision?**
 
-Maqam answers: **does the evidence satisfy the action policy?**
+ProofGate answers: **does the evidence satisfy the declared thresholds?**
+
+Maqam answers: **may the exact tool action cross the final authorization boundary?**
 
 ProofGate returns the authorization boundary.
 
@@ -112,11 +118,12 @@ flowchart TD
     F -->|no| H[Normalize receipts]
     G --> H
     H --> I[Verify signal hashes]
-    I --> J[Qarinah event chain and receipt]
-    J --> K{Maqam action policy}
-    K -->|all hard rules pass| L[ALLOW]
-    K -->|credible refutation or forbidden conflict| M[BLOCK]
-    K -->|insufficient or operational failure| N[ESCALATE]
+    I --> J[ProofGate evidence-policy evaluation]
+    J -->|credible refutation or forbidden conflict| M[BLOCK]
+    J -->|insufficient or operational failure| N[ESCALATE]
+    J -->|all evidence rules pass| K{Maqam final boundary}
+    K -->|authorized| L[ALLOW]
+    K -->|denied, approval, or error| N
 
     O[Qarinah ProofPack Miner] --> P[Live web evidence]
     P --> Q[Cockroach Crawler]
@@ -131,7 +138,7 @@ The ProofGate path is fail-closed:
 3. One auto-routed call demonstrates Telegraph's ranking path; at most two justified second-opinion calls may follow.
 4. Duplicate Miner IDs never count as independent corroboration.
 5. A response must have a real `signal_hash`, and an `ALLOW` requires verified receipts.
-6. Qarinah seals the action, policy, signals, and Maqam decision into an isolated in-memory event chain.
+6. Qarinah seals the action, policy, signals, evidence decision, and final Maqam boundary result into an isolated in-memory event chain.
 7. Unsupported policy language, incomplete signals, payment errors, and timeouts produce `ESCALATE`.
 
 The supporting ProofPack path is static-first and fail-closed:

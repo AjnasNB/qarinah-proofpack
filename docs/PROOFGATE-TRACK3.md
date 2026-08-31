@@ -14,7 +14,7 @@ appear as live demo data, usage, or submission evidence.
 
 | Project surface | Track | Role | Status on 2026-08-31 |
 |---|---|---|---|
-| ProofGate | Track 3: Applications | Main submission | In development; not yet submitted |
+| ProofGate | Track 3: Applications | Main submission | Public UI and fail-closed API deployed; paid x402 path not yet evidenced; not yet submitted |
 | Qarinah ProofPack | Track 1: Miners | Supporting evidence Miner for `FACT_CHECK` and `RESEARCH_SYNTHESIS` | Public API is live, but the Miner is not yet registered in Telegraph |
 | Evaluation WASM | Track 2: Script Authors | Out of scope | No Track 2 submission planned |
 
@@ -45,8 +45,9 @@ areas. ProofGate combines all five in one narrow product:
 3. Telegraph discovers and calls live, ranked Miners.
 4. Each returned `signal_hash` is looked up and verified.
 5. Qarinah records a hash-linked evidence event chain.
-6. Maqam evaluates the compiled policy.
-7. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a sealed receipt.
+6. ProofGate evaluates the compiled evidence thresholds and chooses a provisional decision.
+7. Maqam enforces the final tool boundary before any provisional `ALLOW`.
+8. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a sealed receipt.
 
 This is deeper than displaying a Telegraph response. The network decides which
 intelligence provider should answer. ProofGate decides whether the resulting
@@ -105,7 +106,7 @@ Autonomous agent
       v
 POST /api/preflight
       |
-      +--> deterministic Maqam policy compilation
+      +--> deterministic ProofGate policy compilation
       |
       +--> Telegraph live Miner discovery
       |       GET /api/miners?intent=...&status=active
@@ -121,9 +122,11 @@ POST /api/preflight
       |
       +--> Qarinah hash-linked preflight chain
       |
-      +--> Maqam policy evaluation
-      v
-ALLOW | BLOCK | ESCALATE
+      +--> ProofGate evidence-policy evaluation
+      |       +--> BLOCK | ESCALATE
+      |
+      +--> provisional ALLOW --> Maqam final authorization boundary
+                              +--> ALLOW | ESCALATE
       |
       v
 SHA-256 receipt + Telegraph signal hashes + policy results
@@ -333,7 +336,7 @@ The response schema is `proofgate.preflight.v1`. Its public fields include:
 - `action_id` and `generated_at`;
 - `decision` and `authorization_issued`;
 - the proposed `action`;
-- compiled Maqam policy, recognized constraints, unsupported clauses, and
+- compiled ProofGate evidence policy, recognized constraints, unsupported clauses, and
   `policy_hash`;
 - per-claim verdict, confidence, signal counts, and signal hashes;
 - aggregate confidence, support, refutation, uncertainty, distinct Miner
@@ -488,14 +491,22 @@ This step is time-sensitive because Track 1 ends August 31.
 11. Confirm the Miner appears in the live catalog with intended YAML ID
     `717190`, slug `qarinah-proofpack`, and both exact Intent strings.
 12. Send real Telegraph-routed calls and keep the service live through Track 3.
+13. Open the separate [submission portal](https://submissions.telegraphprotocol.com/),
+    choose **Track 1: Miner Submission**, connect and sign with the owner wallet,
+    provide the active Miner ID, upload the exact registered YAML, enter the
+    required X username, and select **Sign & Submit** before the Track 1 cutoff.
+14. Reopen the Track 1 entry and verify the recorded Miner ID, YAML, wallet,
+    and submission status.
 
 Miner registration needs a small amount of Base Sepolia ETH for gas. The
 official registration guide says there is no bond, stake, or registration fee.
 The intended YAML ID is not the same thing as the on-chain sequential
 `registrationId` returned by the transaction.
 
-Registering a Miner through the developer console automatically enters it into
-the Miner Track. It does not submit ProofGate to Track 3.
+Registering and activating a Miner through the developer console does **not**
+complete the separate Track 1 hackathon submission. ProofPack must be signed
+and submitted in the submission portal. That Track 1 entry also does not submit
+ProofGate to Track 3.
 
 ### 4. Submit ProofGate to Track 3
 
@@ -529,7 +540,7 @@ Require lint, type checking, unit tests, and the production build to pass.
 
 1. Start the app without `TELEGRAPH_EVM_PRIVATE_KEY`.
 2. Call `GET /health` and require:
-   `telegraph_configured: false` and `authorization_mode: "escalate-only"`.
+   `payer_configured: false` and `runtime_mode: "escalate-only"`.
 3. Send a valid `POST /api/preflight` request.
 4. Require HTTP 200 with `decision: "ESCALATE"`,
    `authorization_issued: false`, zero successful paid calls, and a sealed
@@ -594,7 +605,8 @@ back to a sample answer.
 2. Configure server-only secrets in the hosting dashboard.
 3. Redeploy after adding or rotating a secret.
 4. Confirm `GET https://qarinah-proofpack.vercel.app/health` reports
-   `live-x402` for ProofGate and ready state for ProofPack and the verifier.
+   `x402-configured` for ProofGate and ready state for ProofPack and the
+   verifier. This proves configuration only, not payment or live-signal success.
 5. Run a real preflight from an external client, not only from the hosting
    provider's internal network.
 6. Verify every returned Telegraph signal by hash.
@@ -616,6 +628,14 @@ participant OTPs, access tokens, or unredacted wallet operational data.
 These are demo scripts, not prerecorded outputs. The presenter runs each case
 live and shows whatever the real network returns. The expected branch is a
 policy hypothesis, not a hardcoded result.
+
+The current live catalog has not yet been proven to supply two distinct,
+verified, directionally aligned signals with declared confidence mappings for
+the default policy. Until a funded compatibility run proves otherwise, treat
+`ESCALATE` as the only evidenced ProofGate outcome. Registering ProofPack may
+improve structured coverage, but one project-owned Miner is not independent
+corroboration by itself. Do not promise an `ALLOW` or `BLOCK` demo without the
+matching retained live receipts.
 
 Use a policy within the supported deterministic grammar, for example:
 
@@ -691,19 +711,23 @@ of the build.
 
 ### Metrics to retain
 
-- genuine unique users using a privacy-preserving anonymous identifier;
 - completed preflights;
 - actual Telegraph paid call attempts and successes;
 - verified signals and distinct Miner IDs used;
 - ALLOW, BLOCK, and ESCALATE counts;
 - average latency and cost;
-- repeat users and external integrations; and
+- permissioned external integrations, issue links, and tester feedback; and
 - failure reasons and fixes.
 
 Metrics must come from application events tied to real user requests. Exclude
 unit tests, health probes, internal retries, developer smoke tests, and demo
 rehearsals from adoption totals. Document the counting method in the final
 submission.
+
+The MVP deliberately emits no stable user or installation identifier, so its
+logs cannot support unique-user or repeat-user claims. Count those only from
+separately consented tester records or public integration evidence; never infer
+them from action IDs or IP addresses.
 
 The MVP emits one privacy-safe `proofgate.usage.v1` structured server log for
 each completed preflight. It keeps only the opaque action ID, decision, call and
@@ -735,8 +759,8 @@ This section must be updated before final submission.
 | Item | Current state on 2026-08-31 | Exit condition |
 |---|---|---|
 | Standalone public repository | Live at `AjnasNB/qarinah-proofpack` | Keep public and clean |
-| ProofPack production API | Live at `https://qarinah-proofpack.vercel.app` | Reconfirm after ProofGate deployment |
-| ProofGate application | In development | Deploy tested Track 3 UI and `/api/preflight` |
+| ProofPack production API | Live; a real production acquisition returned a sealed pack on 2026-08-31 | Keep the endpoint healthy and archive release evidence |
+| ProofGate application | Public UI and fail-closed `/api/preflight` deployed | Add and evidence the funded x402 path |
 | Telegraph live x402 configuration | Not yet proven in production | Add funded burner secret and retain a verified paid receipt |
 | ProofPack Miner registration | Not registered | Complete official sandbox, on-chain registration, and activation |
 | Participant registration | Not evidenced in this repository | Complete the official email-verified form |
@@ -763,9 +787,10 @@ claim until the corresponding external action has actually completed.
 ProofGate is a pre-action trust firewall for autonomous agents. It turns a
 proposed action and a plain-English evidence policy into real Telegraph Miner
 requests, verifies the returned signal hashes, records a Qarinah provenance
-chain, applies Maqam policy rules, and returns an auditable `ALLOW`, `BLOCK`, or
-`ESCALATE` receipt. It never invents confidence and never authorizes an action
-when evidence or infrastructure is insufficient.
+chain, evaluates deterministic evidence thresholds, asks Maqam to enforce the
+final boundary before any `ALLOW`, and returns an auditable `ALLOW`, `BLOCK`,
+or `ESCALATE` receipt. It never invents confidence and never authorizes an
+action when evidence or infrastructure is insufficient.
 
 ### Open-source provenance
 

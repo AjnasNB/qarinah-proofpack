@@ -161,14 +161,19 @@ trailing newline change, creates a different on-chain commitment.
     and a conflicting/current claim through Telegraph, not only against the
     upstream API. Preserve the routed result and signal hash. Track-3
     applications must use real Miners; mocks do not qualify.
-11. **Complete the hackathon entry.** Registration through the developer
-    console automatically enters the Miner in the hackathon. Verify it appears
-    in the signed-in dashboard, join the required official Discord, and post
-    progress updates publicly on X with `@Telegraphprotoc` tagged, as required
-    by the judging rules.
-12. **Keep it operational.** Monitor health, endpoint success, latency, and
-    Telegraph activation through September 7 at 23:59 UTC. An active Miner that
-    goes offline during Track 3 violates the rules.
+11. **Submit the separate Track 1 entry.** Registration and activation do not
+    complete the hackathon submission. Open
+    <https://submissions.telegraphprotocol.com/>, choose **Track 1: Miner
+    Submission**, connect and sign with the owner wallet, provide the active
+    Miner ID, upload the exact registered YAML, enter the required X username,
+    and select **Sign & Submit** before August 31 at 23:59:59 UTC. Reopen the
+    entry and verify every recorded field.
+12. **Complete the community requirements.** Join the required official
+    Discord and post genuine progress updates publicly on X with
+    `@Telegraphprotoc` tagged, as required by the judging rules.
+13. **Keep it operational.** Monitor health, endpoint success, latency, and
+    Telegraph activation through September 7 at 23:59:59 UTC. An active Miner
+    that goes offline during Track 3 violates the rules.
 
 The official protocol details behind this sequence are the
 [YAML Miner Standard](https://github.com/telegraphprotocol/telegraph-docs/blob/main/miners/yaml-config.md),
