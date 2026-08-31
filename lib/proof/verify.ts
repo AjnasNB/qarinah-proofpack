@@ -33,6 +33,11 @@ const SOURCE_TYPES = new Set([
   "other",
 ]);
 
+export const MAX_VERIFICATION_ERRORS = 128;
+const MAX_EVIDENCE_RECORDS = 128;
+const MAX_CLAIMS = 128;
+const MAX_CONTRADICTIONS = 128;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -85,10 +90,37 @@ export function sealProofPack(payload: ProofPackPayload): ProofPack {
 
 function verifier() {
   const errors: VerificationError[] = [];
+  let truncated = false;
   const add = (code: VerificationErrorCode, path: string, message: string) => {
+    if (truncated) return;
+    if (errors.length >= MAX_VERIFICATION_ERRORS - 1) {
+      errors.push({
+        code: "INVALID_CONTRACT",
+        path: "$",
+        message: `Additional verification errors were omitted after the bounded limit of ${MAX_VERIFICATION_ERRORS}.`,
+      });
+      truncated = true;
+      return;
+    }
     errors.push({ code, path, message });
   };
   return { errors, add };
+}
+
+function diversityScore(count: number): number {
+  if (count <= 0) return 0;
+  if (count === 1) return 0.25;
+  if (count === 2) return 0.6;
+  if (count === 3) return 0.85;
+  return 1;
+}
+
+function roundedScore(value: number): number {
+  return Math.round(Math.max(0, Math.min(1, value)) * 10_000) / 10_000;
+}
+
+function scoresDiffer(left: number, right: number): boolean {
+  return Math.abs(left - right) > 0.0002;
 }
 
 function checkKeys(
@@ -281,8 +313,8 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
   if (!Array.isArray(pack.evidence)) {
     add("INVALID_CONTRACT", "$.evidence", "Expected an evidence array.");
   } else {
-    if (pack.evidence.length > 128) add("INVALID_CONTRACT", "$.evidence", "At most 128 evidence records are permitted.");
-    pack.evidence.forEach((item, index) => {
+    if (pack.evidence.length > MAX_EVIDENCE_RECORDS) add("INVALID_CONTRACT", "$.evidence", `At most ${MAX_EVIDENCE_RECORDS} evidence records are permitted.`);
+    pack.evidence.slice(0, MAX_EVIDENCE_RECORDS).forEach((item, index) => {
       if (validateEvidence(item, index, add) && evidenceIds.has(item.id)) {
         add("INVALID_CONTRACT", `$.evidence[${index}].id`, "Evidence IDs must be unique.");
       } else if (isRecord(item) && typeof item.id === "string") {
@@ -295,8 +327,8 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
   if (!Array.isArray(pack.claims)) {
     add("INVALID_CONTRACT", "$.claims", "Expected a claims array.");
   } else {
-    if (pack.claims.length > 128) add("INVALID_CONTRACT", "$.claims", "At most 128 claims are permitted.");
-    pack.claims.forEach((candidate, index) => {
+    if (pack.claims.length > MAX_CLAIMS) add("INVALID_CONTRACT", "$.claims", `At most ${MAX_CLAIMS} claims are permitted.`);
+    pack.claims.slice(0, MAX_CLAIMS).forEach((candidate, index) => {
       const path = `$.claims[${index}]`;
       if (!isRecord(candidate)) {
         add("INVALID_CONTRACT", path, "Expected a claim object.");
@@ -311,10 +343,41 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
       checkString(candidate.claim, `${path}.claim`, add, { maximum: 8_192 });
       if (!VERDICTS.has(candidate.verdict as string)) add("INVALID_CONTRACT", `${path}.verdict`, "Unsupported claim verdict.");
       checkScore(candidate.confidence, `${path}.confidence`, add);
+      if (candidate.verdict !== pack.verdict) {
+        add("INCONSISTENT_CONTRACT", `${path}.verdict`, "Claim verdict does not match the ProofPack verdict.");
+      }
+      if (typeof candidate.confidence === "number" && candidate.confidence !== pack.confidence) {
+        add("INCONSISTENT_CONTRACT", `${path}.confidence`, "Claim confidence does not match the ProofPack confidence.");
+      }
       for (const field of ["evidence_ids", "supporting_evidence_ids", "refuting_evidence_ids"] as const) {
         if (checkStringArray(candidate[field], `${path}.${field}`, add)) {
           for (const id of candidate[field]) {
             if (!evidenceIds.has(id)) add("INVALID_REFERENCE", `${path}.${field}`, `Unknown evidence ID '${id}'.`);
+          }
+        }
+      }
+      if (Array.isArray(pack.evidence)) {
+        const byId = new Map(
+          pack.evidence
+            .slice(0, MAX_EVIDENCE_RECORDS)
+            .filter(isRecord)
+            .filter((item) => typeof item.id === "string")
+            .map((item) => [item.id as string, item]),
+        );
+        if (Array.isArray(candidate.supporting_evidence_ids)) {
+          for (const id of candidate.supporting_evidence_ids.slice(0, MAX_EVIDENCE_RECORDS)) {
+            const evidence = byId.get(id);
+            if (evidence && evidence.supports !== true) {
+              add("INCONSISTENT_CONTRACT", `${path}.supporting_evidence_ids`, `Evidence ID '${id}' is not marked as supporting evidence.`);
+            }
+          }
+        }
+        if (Array.isArray(candidate.refuting_evidence_ids)) {
+          for (const id of candidate.refuting_evidence_ids.slice(0, MAX_EVIDENCE_RECORDS)) {
+            const evidence = byId.get(id);
+            if (evidence && evidence.refutes !== true) {
+              add("INCONSISTENT_CONTRACT", `${path}.refuting_evidence_ids`, `Evidence ID '${id}' is not marked as refuting evidence.`);
+            }
           }
         }
       }
@@ -334,9 +397,9 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
   if (!Array.isArray(pack.contradictions)) {
     add("INVALID_CONTRACT", "$.contradictions", "Expected a contradictions array.");
   } else {
-    if (pack.contradictions.length > 128) add("INVALID_CONTRACT", "$.contradictions", "At most 128 contradictions are permitted.");
+    if (pack.contradictions.length > MAX_CONTRADICTIONS) add("INVALID_CONTRACT", "$.contradictions", `At most ${MAX_CONTRADICTIONS} contradictions are permitted.`);
     const contradictionIds = new Set<string>();
-    pack.contradictions.forEach((candidate, index) => {
+    pack.contradictions.slice(0, MAX_CONTRADICTIONS).forEach((candidate, index) => {
       const path = `$.contradictions[${index}]`;
       if (!isRecord(candidate)) {
         add("INVALID_CONTRACT", path, "Expected a contradiction object.");
@@ -378,6 +441,41 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
         add("INCONSISTENT_CONTRACT", `$.${field}`, `Top-level ${field} does not match score_breakdown.`);
       }
     }
+
+    if (
+      typeof pack.score_breakdown.entailment === "number"
+      && typeof pack.score_breakdown.source_diversity === "number"
+      && typeof pack.score_breakdown.evidence_coverage === "number"
+      && typeof pack.score_breakdown.freshness === "number"
+      && typeof pack.score_breakdown.source_agreement === "number"
+      && typeof pack.score_breakdown.confidence === "number"
+      && Array.isArray(pack.evidence)
+    ) {
+      const decisiveDomains = new Set(
+        pack.evidence
+          .slice(0, MAX_EVIDENCE_RECORDS)
+          .filter(isRecord)
+          .filter((item) => item.stance === "SUPPORTS" || item.stance === "REFUTES" || item.stance === "MIXED")
+          .map((item) => item.source_domain)
+          .filter((domain): domain is string => typeof domain === "string"),
+      );
+      const expectedDiversity = diversityScore(decisiveDomains.size);
+      if (scoresDiffer(pack.score_breakdown.source_diversity, expectedDiversity)) {
+        add("INCONSISTENT_CONTRACT", "$.score_breakdown.source_diversity", "Source diversity does not match the decisive evidence domains.");
+      }
+      let expectedConfidence =
+        0.35 * pack.score_breakdown.entailment
+        + 0.2 * pack.score_breakdown.source_diversity
+        + 0.2 * pack.score_breakdown.evidence_coverage
+        + 0.15 * pack.score_breakdown.freshness
+        + 0.1 * pack.score_breakdown.source_agreement;
+      if (decisiveDomains.size < 2) expectedConfidence = Math.max(0, expectedConfidence - 0.18);
+      if (pack.evidence.length === 0) expectedConfidence = 0;
+      expectedConfidence = roundedScore(expectedConfidence);
+      if (scoresDiffer(pack.score_breakdown.confidence, expectedConfidence)) {
+        add("INCONSISTENT_CONTRACT", "$.score_breakdown.confidence", "Confidence does not match the declared deterministic scoring formula.");
+      }
+    }
   } else {
     add("INVALID_CONTRACT", "$.score_breakdown", "Expected a score breakdown object.");
   }
@@ -406,6 +504,27 @@ function validateContract(pack: Record<string, unknown>, add: (code: Verificatio
     }
     if (pack.abstained === false && typeof pack.coverage_score === "number" && typeof pack.policy.coverage_threshold === "number" && pack.coverage_score < pack.policy.coverage_threshold) {
       add("INCONSISTENT_CONTRACT", "$.coverage_score", "A non-abstained pack is below the policy coverage threshold.");
+    }
+    if (Array.isArray(pack.evidence) && typeof pack.policy.independent_sources === "number") {
+      const decisiveDomains = new Set(
+        pack.evidence
+          .slice(0, MAX_EVIDENCE_RECORDS)
+          .filter(isRecord)
+          .filter((item) => item.stance === "SUPPORTS" || item.stance === "REFUTES" || item.stance === "MIXED")
+          .map((item) => item.source_domain)
+          .filter((domain): domain is string => typeof domain === "string"),
+      );
+      if (pack.policy.independent_sources !== decisiveDomains.size) {
+        add("INCONSISTENT_CONTRACT", "$.policy.independent_sources", "Independent source count does not match the decisive evidence domains.");
+      }
+    }
+    if (
+      pack.abstained === false
+      && typeof pack.policy.independent_sources === "number"
+      && typeof pack.policy.minimum_independent_sources === "number"
+      && pack.policy.independent_sources < pack.policy.minimum_independent_sources
+    ) {
+      add("INCONSISTENT_CONTRACT", "$.policy.independent_sources", "A non-abstained pack is below the policy source-diversity threshold.");
     }
   } else {
     add("INVALID_CONTRACT", "$.policy", "Expected a policy decision object.");
@@ -448,7 +567,7 @@ function validateProvenanceSemantics(pack: ProofPack, add: (code: VerificationEr
     const embedded = event.data.evidence;
     if (typeof embedded.id === "string") eventEvidence.set(embedded.id, embedded);
   }
-  for (const evidence of pack.evidence) {
+  for (const evidence of pack.evidence.slice(0, MAX_EVIDENCE_RECORDS)) {
     const embedded = eventEvidence.get(evidence.id);
     if (!embedded) {
       add("INVALID_REFERENCE", "$.qarinah.events", `No Qarinah source event records evidence '${evidence.id}'.`);
@@ -496,9 +615,9 @@ export function verifyProofPack(value: unknown): ProofVerificationResult {
     }
   }
 
-  let evidenceHashesValid = Array.isArray(value.evidence);
+  let evidenceHashesValid = Array.isArray(value.evidence) && value.evidence.length <= MAX_EVIDENCE_RECORDS;
   if (Array.isArray(value.evidence)) {
-    value.evidence.forEach((candidate, index) => {
+    value.evidence.slice(0, MAX_EVIDENCE_RECORDS).forEach((candidate, index) => {
       if (!isRecord(candidate) || typeof candidate.evidence_hash !== "string") {
         evidenceHashesValid = false;
         return;

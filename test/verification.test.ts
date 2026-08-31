@@ -13,7 +13,7 @@ import type {
   VerificationErrorCode,
 } from "@/lib/proof/types";
 import { PROOFPACK_SCHEMA_VERSION } from "@/lib/proof/types";
-import { sealProofPack, verifyProofPack } from "@/lib/proof/verify";
+import { MAX_VERIFICATION_ERRORS, sealProofPack, verifyProofPack } from "@/lib/proof/verify";
 
 const GENERATED_AT = "2026-08-31T12:00:00.000Z";
 
@@ -46,19 +46,19 @@ function fixturePayload(): ProofPackPayload {
     id: "CL-001",
     claim: "Product Y will be released this month.",
     verdict: "SUPPORTED" as const,
-    confidence: 0.91,
+    confidence: 0.6315,
     evidence_ids: ["EV-001"],
     supporting_evidence_ids: ["EV-001"],
     refuting_evidence_ids: [],
   }];
   const score_breakdown = {
     entailment: 0.96,
-    source_diversity: 0.5,
+    source_diversity: 0.25,
     evidence_coverage: 0.9,
     freshness: 0.97,
     source_agreement: 1,
     conflict_score: 0,
-    confidence: 0.91,
+    confidence: 0.6315,
   };
   const policy = {
     policy_id: "maqam.evidence-contract.v1" as const,
@@ -204,6 +204,49 @@ describe("offline ProofPack verification", () => {
     const pack = mutablePack();
     pack.abstained = true;
     expectCodes(pack, "INVALID_MANIFEST_HASH", "INCONSISTENT_CONTRACT");
+  });
+
+  it("rejects confidence that does not match the deterministic formula", () => {
+    const pack = mutablePack();
+    pack.confidence = 0.99;
+    pack.score_breakdown.confidence = 0.99;
+    pack.claims[0].confidence = 0.99;
+    const result = expectCodes(pack, "INVALID_MANIFEST_HASH", "INCONSISTENT_CONTRACT");
+    expect(result.errors.some((error) => error.path === "$.score_breakdown.confidence")).toBe(true);
+  });
+
+  it("rejects forged independent-source counts", () => {
+    const pack = mutablePack();
+    pack.policy.independent_sources = 3;
+    const result = expectCodes(pack, "INVALID_MANIFEST_HASH", "INCONSISTENT_CONTRACT");
+    expect(result.errors.some((error) => error.path === "$.policy.independent_sources")).toBe(true);
+  });
+
+  it("rejects claim links whose evidence stance does not match", () => {
+    const pack = mutablePack();
+    pack.claims[0].supporting_evidence_ids = [];
+    pack.claims[0].refuting_evidence_ids = ["EV-001"];
+    const result = expectCodes(pack, "INVALID_MANIFEST_HASH", "INCONSISTENT_CONTRACT");
+    expect(result.errors.some((error) => error.path.endsWith(".refuting_evidence_ids"))).toBe(true);
+  });
+
+  it("rejects a claim decision that diverges from the pack decision", () => {
+    const pack = mutablePack();
+    pack.claims[0].verdict = "REFUTED";
+    pack.claims[0].confidence = 0.42;
+    const result = expectCodes(pack, "INVALID_MANIFEST_HASH", "INCONSISTENT_CONTRACT");
+    expect(result.errors.some((error) => error.path === "$.claims[0].verdict")).toBe(true);
+    expect(result.errors.some((error) => error.path === "$.claims[0].confidence")).toBe(true);
+  });
+
+  it("bounds work and diagnostics for oversized hostile arrays", () => {
+    const pack = mutablePack() as unknown as Record<string, unknown>;
+    pack.evidence = Array.from({ length: 4_096 }, () => ({}));
+    const result = verifyProofPack(pack);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeLessThanOrEqual(MAX_VERIFICATION_ERRORS);
+    expect(result.errors.some((error) => error.message.includes("bounded limit"))).toBe(true);
   });
 
   it("rejects unsupported verification algorithms without confusing them with payload tampering", () => {

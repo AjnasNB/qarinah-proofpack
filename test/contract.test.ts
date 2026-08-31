@@ -79,7 +79,7 @@ export function createFixturePayload(): ProofPackPayload {
     id: "CL-001",
     claim: "Product Y is scheduled for release this month.",
     verdict: "SUPPORTED",
-    confidence: 0.83,
+    confidence: 0.8305,
     evidence_ids: ["EV-001", "EV-002"],
     supporting_evidence_ids: ["EV-001"],
     refuting_evidence_ids: ["EV-002"],
@@ -94,12 +94,12 @@ export function createFixturePayload(): ProofPackPayload {
   }];
   const scoreBreakdown: ScoreBreakdown = {
     entailment: 0.9,
-    source_diversity: 0.8,
+    source_diversity: 0.6,
     evidence_coverage: 0.9,
     freshness: 0.97,
     source_agreement: 0.7,
     conflict_score: 0.2,
-    confidence: 0.83,
+    confidence: 0.8305,
   };
   const policy: PolicyDecision = {
     policy_id: "maqam.evidence-contract.v1",
