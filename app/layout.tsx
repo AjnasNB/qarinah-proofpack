@@ -16,24 +16,24 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.PROOFPACK_PUBLIC_URL || "http://localhost:3000"),
-  title: "Qarinah ProofPack | Verifiable research intelligence",
-  description: "Evidence-backed, hash-verifiable fact checks and research synthesis for autonomous agents.",
+  title: "ProofGate | No proof. No action.",
+  description: "A pre-action trust firewall that uses real Telegraph Miner signals, Qarinah evidence lineage, and Maqam policy to authorize, block, or escalate agent actions.",
   openGraph: {
-    title: "Qarinah ProofPack",
-    description: "Autonomous agents should act on evidence, not plausible prose.",
+    title: "ProofGate",
+    description: "Make autonomous agents earn permission to act.",
     type: "website",
     images: [{
-      url: "/images/proofpack-provenance.webp",
+      url: "/images/proofpack-decision-gate.webp",
       width: 1536,
       height: 1024,
-      alt: "Qarinah ProofPack evidence provenance layers"
+      alt: "ProofGate evidence authorization gate"
     }]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Qarinah ProofPack",
-    description: "Evidence-backed intelligence for autonomous agents.",
-    images: ["/images/proofpack-provenance.webp"]
+    title: "ProofGate",
+    description: "No proof. No action.",
+    images: ["/images/proofpack-decision-gate.webp"]
   },
   robots: {
     index: true,
