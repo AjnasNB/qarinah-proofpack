@@ -92,10 +92,48 @@ describe("Telegraph discovery and normalization", () => {
       miner("fact-2", "fact-2", "FACT_CHECK", 2),
       miner("research-1", "research-1", "RESEARCH_SYNTHESIS", 1),
     ];
-    expect(selectDirectMiners(miners, new Set(["auto"]))).toEqual([
+    expect(selectDirectMiners(miners, new Set(["auto"]), "Verify the telescope launch date.")).toEqual([
       { miner: miners[1], intent: "FACT_CHECK" },
       { miner: miners[2], intent: "RESEARCH_SYNTHESIS" },
     ]);
+  });
+
+  it("does not pay a declared employment-only miner for general research", () => {
+    const jobMiner = {
+      ...miner("jobs", "legwork-job-hunter", "RESEARCH_SYNTHESIS", 1),
+      description: "Live job search and application writing. Do not route here for general web search or academic research.",
+      endpoints: [{ path: "/job-hunt", method: "POST", description: "Search job boards for open roles." }],
+    };
+    const generalMiner = {
+      ...miner("research", "general-research", "RESEARCH_SYNTHESIS", 2),
+      description: "Evidence-aware general web research and source-backed synthesis.",
+      endpoints: [{ path: "/synthesis", method: "POST" }],
+    };
+    expect(selectDirectMiners(
+      [jobMiner, generalMiner],
+      new Set(),
+      "Verify when the James Webb Space Telescope launched.",
+    )).toEqual([{ miner: generalMiner, intent: "RESEARCH_SYNTHESIS" }]);
+    expect(selectDirectMiners(
+      [jobMiner, generalMiner],
+      new Set(),
+      "Verify which companies are hiring backend engineers for remote jobs.",
+      1,
+    )).toEqual([{ miner: jobMiner, intent: "RESEARCH_SYNTHESIS" }]);
+  });
+
+  it("prefers a confidence-mapped corroborator over an auxiliary higher-ranked result", () => {
+    const auxiliary = {
+      ...miner("aux", "auxiliary-search", "FACT_CHECK", 1),
+      signal_mapping: { label_field: "answer", reason_field: "results" },
+    };
+    const authoritative = miner("mapped", "mapped-proof", "FACT_CHECK", 9);
+    expect(selectDirectMiners(
+      [auxiliary, authoritative],
+      new Set(),
+      "Verify the launch date.",
+      1,
+    )).toEqual([{ miner: authoritative, intent: "FACT_CHECK" }]);
   });
 
   it("accepts a signal only when the lookup commits to the exact returned result", () => {

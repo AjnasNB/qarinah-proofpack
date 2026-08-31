@@ -426,7 +426,7 @@ export async function buildPreflight(
 
       if (autoVerified) {
         const remainingCalls = maximumPaidCalls - operational.paid_calls_attempted;
-        const directPlans = selectDirectMiners(miners, excluded, remainingCalls);
+        const directPlans = selectDirectMiners(miners, excluded, query, remainingCalls);
         if (remainingCalls > 0 && directPlans.length === 0) operationalCodes.push("NO_ADDITIONAL_VIABLE_MINER");
         for (const { miner, intent } of directPlans) {
           if (operational.paid_calls_attempted >= maximumPaidCalls) break;

@@ -21,6 +21,21 @@ const MAX_EXTERNAL_BODY_BYTES = 2 * 1024 * 1024;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const SIGNAL_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const TEXT_INPUT_FIELDS = ["query", "question", "claim", "statement", "topic", "prompt", "text"] as const;
+const EMPLOYMENT_ENDPOINT_PATTERN = /(?:^|[-_/])(job|jobs|career|careers|resume|cv|hiring|recruit|tailor)(?:$|[-_/])/i;
+const EMPLOYMENT_CAPABILITY_PATTERNS = [
+  /\bjob search\b/i,
+  /\bjob boards?\b/i,
+  /\bjob applications?\b/i,
+  /\bcover letters?\b/i,
+  /\bapplication writing\b/i,
+  /\bwho is hiring\b/i,
+] as const;
+const EMPLOYMENT_QUERY_PATTERNS = [
+  /\b(job|jobs|career|careers|hiring|hire|recruiter|recruiting|resume|cv|salary|salaries|compensation|vacancy|vacancies|employment)\b/i,
+  /\bcover letters?\b/i,
+  /\bjob applications?\b/i,
+  /\b(open|available) roles?\b/i,
+] as const;
 
 export type TelegraphClientErrorCode =
   | "NOT_CONFIGURED"
@@ -195,6 +210,31 @@ export function isViableMiner(miner: TelegraphMiner, intent: TelegraphIntent): b
     && buildDirectRequest(miner, "viability check") !== null;
 }
 
+/**
+ * Telegraph intents are intentionally broad. Respect a Miner's declared vertical
+ * scope before paying it for corroboration rather than treating the intent label
+ * alone as proof that the provider can answer the user's claim.
+ */
+function isRelevantMiner(miner: TelegraphMiner, query: string): boolean {
+  const capabilityText = [
+    miner.name,
+    miner.slug,
+    miner.description ?? "",
+    ...miner.endpoints.flatMap((endpoint) => [endpoint.path, endpoint.description ?? ""]),
+  ].join("\n");
+  const employmentEndpoint = miner.endpoints.some((endpoint) => EMPLOYMENT_ENDPOINT_PATTERN.test(endpoint.path));
+  const employmentMarkers = EMPLOYMENT_CAPABILITY_PATTERNS
+    .filter((pattern) => pattern.test(capabilityText))
+    .length;
+  const employmentOnly = employmentEndpoint || employmentMarkers >= 2;
+  return !employmentOnly || EMPLOYMENT_QUERY_PATTERNS.some((pattern) => pattern.test(query));
+}
+
+function mapsConfidence(miner: TelegraphMiner): boolean {
+  return typeof miner.signal_mapping?.confidence_field === "string"
+    && miner.signal_mapping.confidence_field.length > 0;
+}
+
 function rankFor(miner: TelegraphMiner, intent: TelegraphIntent): number {
   return miner.scores?.find((score) => score.intent_id === intent)?.rank ?? Number.MAX_SAFE_INTEGER;
 }
@@ -202,6 +242,7 @@ function rankFor(miner: TelegraphMiner, intent: TelegraphIntent): number {
 export function selectDirectMiners(
   miners: TelegraphMiner[],
   excludedMinerIds: ReadonlySet<string>,
+  query: string,
   limit = 2,
 ): Array<{ miner: TelegraphMiner; intent: TelegraphIntent }> {
   if (!Number.isInteger(limit) || limit < 1) return [];
@@ -210,8 +251,10 @@ export function selectDirectMiners(
 
   for (const intent of ["FACT_CHECK", "RESEARCH_SYNTHESIS"] as const) {
     const candidates = miners
-      .filter((miner) => !seen.has(miner.id) && isViableMiner(miner, intent))
+      .filter((miner) => !seen.has(miner.id) && isViableMiner(miner, intent) && isRelevantMiner(miner, query))
       .sort((left, right) => {
+        const confidenceMappingDelta = Number(mapsConfidence(right)) - Number(mapsConfidence(left));
+        if (confidenceMappingDelta !== 0) return confidenceMappingDelta;
         const rankDelta = rankFor(left, intent) - rankFor(right, intent);
         if (rankDelta !== 0) return rankDelta;
         const priceDelta = (left.min_price_usdc ?? Number.MAX_SAFE_INTEGER) - (right.min_price_usdc ?? Number.MAX_SAFE_INTEGER);

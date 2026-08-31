@@ -431,7 +431,7 @@ Recommended production limits for the first public release:
 ```dotenv
 TELEGRAPH_NODE_URL=https://devnode.telegraphprotocol.com
 TELEGRAPH_MAX_PAYMENT_USDC_MICROS=50000
-PROOFGATE_MAX_CALLS=2
+PROOFGATE_MAX_CALLS=3
 PROOFPACK_PUBLIC_URL=https://qarinah-proofpack.vercel.app
 ```
 
@@ -564,7 +564,9 @@ forward as if it were current.
 ### Funded local x402 check
 
 1. Put a dedicated, minimally funded key in `.env.local`.
-2. Set `PROOFGATE_MAX_CALLS=2` and a conservative payment cap.
+2. Set `PROOFGATE_MAX_CALLS=3` and a conservative payment cap. One call uses
+   Telegraph auto-routing; up to two distinct, capability-matched direct calls
+   provide the confidence-mapped corroboration required by the default policy.
 3. Restart the server so secrets are loaded.
 4. Send one preflight through the local application.
 5. Require at least one real paid call to succeed.
