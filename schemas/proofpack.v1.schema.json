@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qarinah.io/schemas/proofpack.v1.schema.json",
+  "title": "Qarinah ProofPack v1",
+  "description": "A self-contained, hash-verifiable evidence contract for autonomous-agent research intelligence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "pack_id",
+    "request",
+    "generated_at",
+    "verdict",
+    "confidence",
+    "answer",
+    "coverage_score",
+    "freshness_score",
+    "conflict_score",
+    "score_breakdown",
+    "claims",
+    "evidence",
+    "contradictions",
+    "policy",
+    "qarinah",
+    "abstained",
+    "reason",
+    "verification"
+  ],
+  "properties": {
+    "schema_version": { "const": "qarinah.proofpack.v1" },
+    "pack_id": { "$ref": "#/$defs/id" },
+    "request": { "$ref": "#/$defs/request" },
+    "generated_at": { "$ref": "#/$defs/timestamp" },
+    "verdict": { "$ref": "#/$defs/verdict" },
+    "confidence": { "$ref": "#/$defs/score" },
+    "answer": { "type": "string", "maxLength": 65536 },
+    "coverage_score": { "$ref": "#/$defs/score" },
+    "freshness_score": { "$ref": "#/$defs/score" },
+    "conflict_score": { "$ref": "#/$defs/score" },
+    "score_breakdown": { "$ref": "#/$defs/scoreBreakdown" },
+    "claims": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "contradictions": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/contradiction" }
+    },
+    "policy": { "$ref": "#/$defs/policy" },
+    "qarinah": { "$ref": "#/$defs/qarinahProofChain" },
+    "abstained": { "type": "boolean" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "verification": { "$ref": "#/$defs/verification" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "INSUFFICIENT_EVIDENCE" } }, "required": ["verdict"] },
+      "then": { "properties": { "abstained": { "const": true } } }
+    },
+    {
+      "if": { "properties": { "abstained": { "const": true } }, "required": ["abstained"] },
+      "then": { "properties": { "verdict": { "enum": ["MIXED", "INSUFFICIENT_EVIDENCE"] } } }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "verdict": {
+      "enum": ["SUPPORTED", "REFUTED", "MIXED", "INSUFFICIENT_EVIDENCE"]
+    },
+    "stance": {
+      "enum": ["SUPPORTS", "REFUTES", "MIXED", "NEUTRAL"]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "intent": { "enum": ["FACT_CHECK", "RESEARCH_SYNTHESIS"] },
+        "request_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "as_of": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "url",
+        "canonical_url",
+        "title",
+        "excerpt",
+        "retrieved_at",
+        "published_at",
+        "content_hash",
+        "evidence_hash",
+        "source_domain",
+        "source_type",
+        "stance",
+        "relevance",
+        "quality",
+        "freshness",
+        "supports",
+        "refutes",
+        "untrusted"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "url": { "type": "string", "format": "uri", "maxLength": 4096, "pattern": "^https?://" },
+        "canonical_url": { "type": "string", "format": "uri", "maxLength": 4096, "pattern": "^https?://" },
+        "title": { "type": "string", "maxLength": 1024 },
+        "excerpt": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "retrieved_at": { "$ref": "#/$defs/timestamp" },
+        "published_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "content_hash": { "$ref": "#/$defs/hash" },
+        "evidence_hash": { "$ref": "#/$defs/hash" },
+        "source_domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+        },
+        "source_type": { "enum": ["official", "government", "academic", "news", "primary", "secondary", "crawler", "rendered", "other"] },
+        "stance": { "$ref": "#/$defs/stance" },
+        "relevance": { "$ref": "#/$defs/score" },
+        "quality": { "$ref": "#/$defs/score" },
+        "freshness": { "$ref": "#/$defs/score" },
+        "supports": { "type": "boolean" },
+        "refutes": { "type": "boolean" },
+        "untrusted": { "const": true }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "stance": { "const": "SUPPORTS" } }, "required": ["stance"] },
+          "then": { "properties": { "supports": { "const": true }, "refutes": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "stance": { "const": "REFUTES" } }, "required": ["stance"] },
+          "then": { "properties": { "supports": { "const": false }, "refutes": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "stance": { "const": "MIXED" } }, "required": ["stance"] },
+          "then": { "properties": { "supports": { "const": true }, "refutes": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "stance": { "const": "NEUTRAL" } }, "required": ["stance"] },
+          "then": { "properties": { "supports": { "const": false }, "refutes": { "const": false } } }
+        }
+      ]
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "claim", "verdict", "confidence", "evidence_ids", "supporting_evidence_ids", "refuting_evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "claim": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "verdict": { "$ref": "#/$defs/verdict" },
+        "confidence": { "$ref": "#/$defs/score" },
+        "evidence_ids": { "$ref": "#/$defs/idArray" },
+        "supporting_evidence_ids": { "$ref": "#/$defs/idArray" },
+        "refuting_evidence_ids": { "$ref": "#/$defs/idArray" }
+      }
+    },
+    "contradiction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "claim_id", "description", "evidence_ids", "severity", "unresolved"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "claim_id": { "$ref": "#/$defs/id" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "severity": { "$ref": "#/$defs/score" },
+        "unresolved": { "type": "boolean" }
+      }
+    },
+    "idArray": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "scoreBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entailment", "source_diversity", "evidence_coverage", "freshness", "source_agreement", "conflict_score", "confidence"],
+      "properties": {
+        "entailment": { "$ref": "#/$defs/score" },
+        "source_diversity": { "$ref": "#/$defs/score" },
+        "evidence_coverage": { "$ref": "#/$defs/score" },
+        "freshness": { "$ref": "#/$defs/score" },
+        "source_agreement": { "$ref": "#/$defs/score" },
+        "conflict_score": { "$ref": "#/$defs/score" },
+        "confidence": { "$ref": "#/$defs/score" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "passed", "abstained", "final_verdict", "independent_sources", "minimum_independent_sources", "coverage_threshold", "confidence_threshold", "rules_triggered", "reason"],
+      "properties": {
+        "policy_id": { "const": "maqam.evidence-contract.v1" },
+        "passed": { "type": "boolean" },
+        "abstained": { "type": "boolean" },
+        "final_verdict": { "$ref": "#/$defs/verdict" },
+        "independent_sources": { "type": "integer", "minimum": 0 },
+        "minimum_independent_sources": { "type": "integer", "minimum": 0 },
+        "coverage_threshold": { "$ref": "#/$defs/score" },
+        "confidence_threshold": { "$ref": "#/$defs/score" },
+        "rules_triggered": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "qarinahProofChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "workspace_id", "events", "event_count", "head_hash"],
+      "properties": {
+        "schema_version": { "const": "qarinah.proof-chain.v1" },
+        "workspace_id": { "type": "string", "pattern": "^ws_[0-9a-f]{32}$" },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/qarinahEvent" }
+        },
+        "event_count": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "head_hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "qarinahEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "eventId", "timestamp", "workspaceId", "sessionId", "turnId", "kind", "actor", "title", "body", "data", "confidence", "relations", "provenance", "retention", "previousHash", "hash"],
+      "properties": {
+        "schemaVersion": { "const": "qarinah.event.v1" },
+        "eventId": { "type": "string", "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+        "timestamp": { "$ref": "#/$defs/timestamp" },
+        "workspaceId": { "type": "string", "pattern": "^ws_[0-9a-f]{32}$" },
+        "sessionId": { "type": ["string", "null"], "maxLength": 256 },
+        "turnId": { "type": ["string", "null"], "maxLength": 256 },
+        "kind": { "enum": ["session.started", "prompt.submitted", "tool.requested", "tool.completed", "turn.completed", "compaction.started", "compaction.completed", "artifact", "source", "claim", "decision", "approval", "summary", "memory.scope.attached", "memory.scope.revoked", "context.pack.compiled"] },
+        "actor": { "$ref": "#/$defs/qarinahActor" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "body": { "type": "string", "maxLength": 65536 },
+        "data": { "type": "object", "maxProperties": 128 },
+        "confidence": { "enum": ["extracted", "inferred", "claimed", "verified"] },
+        "authority": { "$ref": "#/$defs/qarinahAuthority" },
+        "temporal": { "$ref": "#/$defs/qarinahTemporal" },
+        "repository": { "$ref": "#/$defs/qarinahRepository" },
+        "freshness": { "$ref": "#/$defs/qarinahFreshness" },
+        "disclosure": { "$ref": "#/$defs/qarinahDisclosure" },
+        "relations": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/qarinahRelation" }
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapter", "sourceId", "contentHash"],
+          "properties": {
+            "adapter": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "sourceId": { "type": ["string", "null"], "maxLength": 512 },
+            "contentHash": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "expiresAt"],
+          "properties": {
+            "class": { "enum": ["session", "project", "durable"] },
+            "expiresAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+          }
+        },
+        "previousHash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "qarinahActor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["human", "agent", "tool", "system", "source"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "qarinahRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "enum": ["derived_from", "produced", "changed", "supports", "contradicts", "supersedes", "authorized_by", "governed_by", "affects", "references"] },
+        "target": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "qarinahAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "rank", "assignedBy", "assignedAt", "expiresAt", "revokedAt", "basis"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "rank": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "assignedBy": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "assignedAt": { "$ref": "#/$defs/timestamp" },
+        "expiresAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "revokedAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "basis": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "qarinahTemporal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validFrom", "validUntil"],
+      "properties": {
+        "validFrom": { "$ref": "#/$defs/timestamp" },
+        "validUntil": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "qarinahRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "branch", "commit"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "branch": { "type": ["string", "null"], "maxLength": 512 },
+        "commit": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "qarinahFreshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "dependencies"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "hash"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+              "hash": { "$ref": "#/$defs/hash" }
+            }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version", "hash"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "version": { "type": ["string", "null"], "maxLength": 256 },
+              "hash": { "$ref": "#/$defs/hash" }
+            }
+          }
+        }
+      }
+    },
+    "qarinahDisclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scopes", "classification"],
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "classification": { "enum": ["public", "workspace", "restricted"] }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "algorithm", "canonicalization", "manifest_scope", "manifest_hash", "event_chain_head", "event_count"],
+      "properties": {
+        "schema_version": { "const": "qarinah.proof-verification.v1" },
+        "algorithm": { "const": "SHA-256" },
+        "canonicalization": { "const": "proofpack.canonical-json.v1" },
+        "manifest_scope": { "const": "proofpack-without-verification" },
+        "manifest_hash": { "$ref": "#/$defs/hash" },
+        "event_chain_head": { "$ref": "#/$defs/hash" },
+        "event_count": { "type": "integer", "minimum": 1, "maximum": 512 }
+      }
+    }
+  }
+}
