@@ -15,24 +15,93 @@
 [**Track 3 runbook**](docs/PROOFGATE-TRACK3.md) ·
 [**Miner runbook**](docs/TELEGRAPH-SUBMISSION.md)
 
-AI agents can act faster than humans can verify them. ProofGate makes an agent earn permission before a consequential action proceeds.
+## What we are building
 
-The primary submission is a Telegraph **Track 3 Application**. A proposed action and a plain-English policy enter one preflight pipeline:
+ProofGate is a **pre-action evidence firewall for autonomous agents**. It is not
+another fact-check chatbot. Before an agent publishes a claim, executes a
+workflow, approves a transaction, or performs another consequential action,
+ProofGate makes the agent earn permission with verifiable intelligence.
 
-1. Telegraph routes a paid request to a real ranked Miner.
-2. ProofGate requests independent live signals when the policy requires corroboration.
-3. Qarinah preserves each Miner identity, `signal_hash`, result hash, payment-receipt hash, and event relationship.
-4. ProofGate evaluates a deterministic, bounded evidence policy.
-5. Maqam enforces the final tool-authorization boundary before any `ALLOW`.
-6. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a downloadable SHA-256 receipt.
+The agent supplies the proposed action and a plain-English evidence policy.
+ProofGate asks real Telegraph Miners for intelligence, verifies the returned
+signals, evaluates independent agreement and conflict, preserves the decision
+provenance with Qarinah, and sends the exact action through Maqam's final
+authorization boundary.
 
-Production never substitutes local or mocked intelligence. Missing wallet configuration, payment failure, unavailable Telegraph service, insufficient mapped-confidence corroboration, ambiguous policy, or insufficient distinct Miners can only reduce authority to `ESCALATE`.
+The result is deliberately small and machine-actionable:
+
+| Decision | Meaning |
+|---|---|
+| `ALLOW` | Verified evidence satisfies every declared policy rule, so the exact action may proceed |
+| `BLOCK` | Credible verified evidence refutes the action, or the policy explicitly forbids the detected conflict |
+| `ESCALATE` | Evidence, confidence, Miner diversity, policy coverage, payment, or verification is insufficient; require human review |
+
+In one sentence: **Telegraph decides which intelligence providers deserve the
+request; ProofGate decides whether their verified evidence is strong enough for
+an agent to act.**
+
+## Two connected Telegraph submissions
+
+| Component | Track | Role |
+|---|---|---|
+| **Qarinah ProofPack** | Supporting **Track 1 Miner** | Produces structured, hash-verifiable evidence packs for `FACT_CHECK` and `RESEARCH_SYNTHESIS` |
+| **Qarinah ProofGate** | Primary **Track 3 Application** | Consumes real Telegraph Miner signals and returns the pre-action `ALLOW`, `BLOCK`, or `ESCALATE` decision |
+
+These are two sides of the same trust system. ProofPack supplies verifiable
+intelligence to Telegraph; ProofGate creates real application demand for
+Telegraph intelligence and uses it at an actual authorization boundary.
+
+## A simple example
+
+Suppose an autonomous publishing agent wants to post: "Company X will launch
+Product Y this month."
+
+1. The agent sends that action and its evidence policy to `POST /api/preflight`.
+2. Telegraph routes a paid request to a real ranked Miner.
+3. ProofGate obtains distinct second opinions when the policy requires them.
+4. Every counted response must resolve to a verifiable Telegraph `signal_hash`.
+5. Qarinah seals Miner identity, result hashes, payment-receipt hashes, policy
+   evaluation, and event relationships into a downloadable receipt.
+6. Maqam checks the final action boundary.
+7. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE`. Weak or conflicting
+   evidence never becomes permission by default.
+
+Production never substitutes local or mocked intelligence. Missing wallet
+configuration, payment failure, unavailable Telegraph service, insufficient
+mapped-confidence corroboration, ambiguous policy, or insufficient distinct
+Miners can only reduce authority to `ESCALATE`.
+
+## Why this fits Track 3
+
+Telegraph's Application Track asks builders to ship real products, agents,
+automations, and workflows that consume live Miners and create genuine demand.
+ProofGate puts Telegraph in the critical path of an autonomous decision instead
+of using it as a decorative data source:
+
+- it uses Telegraph's auto-routing path before requesting justified independent
+  corroboration;
+- it consumes real, x402-paid Miner responses rather than fixtures;
+- it verifies and retains the returned `signal_hash` commitments;
+- it applies declared confidence thresholds, Miner diversity, conflict, and
+  policy rules before authorizing an action;
+- it demonstrates useful safe behavior when the correct answer is to refuse or
+  escalate, not merely when Miners agree;
+- every real preflight generates measurable demand for Telegraph Miners.
+
+The competitive demonstration is three cases: a supported claim that earns
+`ALLOW`, a credibly refuted claim that produces `BLOCK`, and an ambiguous or
+conflicted claim that safely produces `ESCALATE`. Real paid calls, retained
+signal proofs, genuine users or agent integrations, and transparent public
+updates are the adoption evidence—not mocked traffic or a scripted result.
+
+See the [official Telegraph rules](https://hackathon.telegraphprotocol.com/rules)
+and the complete [Track 3 runbook](docs/PROOFGATE-TRACK3.md).
 
 > [!NOTE]
 > Qarinah ProofPack is an active supporting Track 1 Miner and is available at `/proofpack`. Telegraph's live catalog resolves YAML Miner ID `717190`, slug `qarinah-proofpack`, and on-chain registration `398`; the Track 1 portal separately reports the entry as verified. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
 
 > [!WARNING]
-> The deployed ProofGate payer is not configured yet, and the current live catalog has not been proven to satisfy the default policy with two compatible, directionally aligned confidence mappings. Until a funded run returns retained verified receipts, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
+> The deployed ProofGate payer is not configured yet, so a funded end-to-end Track 3 run has not been evidenced. Until a dedicated, minimally funded Base Sepolia burner returns retained verified receipts, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
 
 ## ProofGate preflight contract
 
