@@ -129,6 +129,24 @@ describe("scoreEvidence", () => {
     expect(score.winner).toBe("REFUTE");
   });
 
+  it("keeps a truncated dated launch-delay headline neutral", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2020?",
+      [{
+        url: "https://spaceflightnow.com/2020/07/16/nasa-announces-seven-month-launch-delay-for-jwst/",
+        domain: "spaceflightnow.com",
+        excerpt: "NASA announces seven-month launch delay for JWST July 16, 2020. NASA officials said the launch of the James Webb Space Telescope will be delayed seven months to Oct.",
+        relevance: 0.96,
+        quality: 0.9,
+        freshness: 0.4
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("UNCERTAIN");
+    expect(score.supportWeight).toBe(0);
+    expect(score.refuteWeight).toBe(0);
+  });
+
   it("uses a postponed event's destination year instead of its former target", () => {
     const score = scoreEvidence(
       "Did the James Webb Space Telescope launch in 2020?",

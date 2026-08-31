@@ -65,13 +65,27 @@ const TEMPORAL_EVENT_FAMILIES = [
   { id: "close", pattern: /\b(?:clos(?:e|ed|es|ing)|end(?:ed|s|ing)?)\b/giu },
   { id: "acquire", pattern: /\bacquir(?:e|ed|es|ing)\b/giu },
   { id: "merge", pattern: /\bmerg(?:e|ed|es|ing)\b/giu },
-  { id: "file", pattern: /\bfil(?:e|ed|es|ing)\b/giu }
+  { id: "file", pattern: /\bfil(?:e|ed|es|ing)\b/giu },
+  { id: "disruption", pattern: /\b(?:delay(?:ed|s|ing)?|postpon(?:e|ed|es|ing)|reschedul(?:e|ed|es|ing)|push(?:ed|es|ing)?\s+back)\b/giu }
 ] as const;
 
 const RESCHEDULE_DESTINATION_PATTERN = /\b(?:delay(?:ed|s|ing)?|postpon(?:e|ed|es|ing)|push(?:ed|es|ing)?|mov(?:e|ed|es|ing))\b[\s\S]{0,220}?\b(?:until|to)\b[\s\S]{0,48}?\b(1\d{3}|20\d{2})\b/giu;
 const RESCHEDULE_FOR_DESTINATION_PATTERN = /\breschedul(?:e|ed|es|ing)\b[\s\S]{0,100}?\b(?:for|to)\b[\s\S]{0,48}?\b(1\d{3}|20\d{2})\b/giu;
 const TARGETING_DESTINATION_PATTERN = /\b(?:now\s+(?:(?:is|are)\s+)?targeting|targeting)\b[\s\S]{0,64}?\b(1\d{3}|20\d{2})\b[\s\S]{0,48}?\bfor\s+(?:the\s+)?(launch(?:ed|es|ing)?|releas(?:e|ed|es|ing))\b/giu;
 const EVENT_DATE_CUE_PATTERN = /\b(?:in|on|for|to|until|by|during|scheduled|expected|targeted|date)\b/iu;
+const DISRUPTION_PATTERN = /\b(?:delay(?:ed|s|ing)?|postpon(?:e|ed|es|ing)|reschedul(?:e|ed|es|ing)|push(?:ed|es|ing)?\s+back)\b/iu;
+const COMPLETED_EVENT_PATTERNS = new Map<string, RegExp>([
+  ["launch", /\blaunch(?:ed|es)\b/iu],
+  ["release", /\breleas(?:ed|es)\b/iu],
+  ["announce", /\bannounc(?:ed|es)\b/iu],
+  ["publish", /\bpublish(?:ed|es)\b/iu],
+  ["start", /\b(?:started|began|begins)\b/iu],
+  ["open", /\bopen(?:ed|s)\b/iu],
+  ["close", /\b(?:clos(?:ed|es)|end(?:ed|s))\b/iu],
+  ["acquire", /\bacquir(?:ed|es)\b/iu],
+  ["merge", /\bmerg(?:ed|es)\b/iu],
+  ["file", /\bfil(?:ed|es)\b/iu]
+]);
 
 interface LocatedMatch {
   value: string;
@@ -159,6 +173,10 @@ function focusedEventFamilyIds(query: string): Set<string> {
   return new Set(matches
     .filter((match) => Math.min(...queryYears.map((year) => spanDistance(match, year))) === minimumDistance)
     .map((match) => match.id));
+}
+
+function hasCompletedFocusedEvent(value: string, focusedIds: ReadonlySet<string>): boolean {
+  return [...focusedIds].some((id) => COMPLETED_EVENT_PATTERNS.get(id)?.test(value) === true);
 }
 
 /**
@@ -256,6 +274,7 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   const evidenceNegative = hasNegation(localEvidence);
   const explicitSupport = SUPPORT_PATTERNS.some((pattern) => pattern.test(localEvidence));
   const claimYears = years(query);
+  const focusedEventIds = focusedEventFamilyIds(query);
   const localYears = years(localEvidence);
   const authoritativeEventYears = eventYears(excerpt, query, false);
   const localEventYears = eventYears(localEvidence, query);
@@ -279,6 +298,11 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   const lexicalSupport = lexicalCoverage >= 0.75;
   const supportSufficient = matchingYear
     && (explicitSupport || evidenceNegative || (claimYears.size === 0 && lexicalSupport));
+  const unresolvedDisruption = claimYears.size > 0
+    && !focusedEventIds.has("disruption")
+    && authoritativeEventYears.size === 0
+    && DISRUPTION_PATTERN.test(excerpt)
+    && !hasCompletedFocusedEvent(excerpt, focusedEventIds);
 
   let stance: ScoredStance = "UNCERTAIN";
   let stanceScore = 0.25 + relevance * 0.25;
@@ -299,6 +323,13 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   if (relevance < 0.34 || matchedTerms.length < Math.min(2, Math.max(1, claimTerms.length))) {
     stance = "UNCERTAIN";
     stanceScore = 0.2 + relevance * 0.35;
+  } else if (unresolvedDisruption && stance === "SUPPORT") {
+    // A dated delay/postponement headline is not evidence that the event
+    // happened in the publication year. Without a stated destination year or
+    // explicit completed-event verb, keep it neutral instead of manufacturing
+    // support from the dateline.
+    stance = "UNCERTAIN";
+    stanceScore = 0.24 + relevance * 0.3;
   }
 
   return {
