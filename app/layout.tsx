@@ -21,7 +21,19 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Qarinah ProofPack",
     description: "Autonomous agents should act on evidence, not plausible prose.",
-    type: "website"
+    type: "website",
+    images: [{
+      url: "/images/proofpack-provenance.webp",
+      width: 1536,
+      height: 1024,
+      alt: "Qarinah ProofPack evidence provenance layers"
+    }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Qarinah ProofPack",
+    description: "Evidence-backed intelligence for autonomous agents.",
+    images: ["/images/proofpack-provenance.webp"]
   },
   robots: {
     index: true,
