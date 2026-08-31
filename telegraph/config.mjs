@@ -81,11 +81,9 @@ const PARAM_FIELDS = new Set([
   "type",
   "intents",
   "description",
-  "accepted_fields",
   "example",
   "default",
 ]);
-const ACCEPTED_VALUE_FIELDS = new Set(["value", "intents", "description"]);
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -222,17 +220,6 @@ function validateEndpointParams(params, path) {
         if (parameter.description !== undefined) {
           assertNonEmptyString(parameter.description, `${definitionPath}.description`);
         }
-        if (parameter.accepted_fields !== undefined) {
-          if (!Array.isArray(parameter.accepted_fields)) {
-            fail(`${definitionPath}.accepted_fields must be an array.`);
-          }
-          parameter.accepted_fields.forEach((accepted, acceptedIndex) => {
-            const acceptedPath = `${definitionPath}.accepted_fields.${acceptedIndex}`;
-            const acceptedValue = assertClosedSet(accepted, ACCEPTED_VALUE_FIELDS, acceptedPath);
-            if (acceptedValue.value === undefined) fail(`${acceptedPath}.value is required.`);
-            assertStringArray(acceptedValue.intents, `${acceptedPath}.intents`);
-          });
-        }
       });
     }
   }
@@ -339,12 +326,8 @@ export function validateMinerConfig(value) {
   const intentParam = endpoint.params?.body?.optional?.find((item) => item?.name === "intent");
   if (intentParam?.type !== "string"
     || intentParam.intents?.length !== 1
-    || intentParam.intents[0] !== "*"
-    || intentParam.accepted_fields?.length !== TELEGRAPH_INTENTS.length
-    || !TELEGRAPH_INTENTS.every((intent) => intentParam.accepted_fields.some((item) => (
-      item?.value === intent && item?.intents?.length === 1 && item.intents[0] === intent
-    )))) {
-    fail("endpoints.0.params must map each supported intent to the optional intent body parameter.");
+    || intentParam.intents[0] !== "*") {
+    fail("endpoints.0.params must declare an optional string intent body parameter.");
   }
 
   const inputSchema = assertRecord(config.input_schema, "input_schema");

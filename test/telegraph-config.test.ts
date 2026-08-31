@@ -48,7 +48,6 @@ interface TelegraphConfigShape {
           name: string;
           type: string;
           intents: string[];
-          accepted_fields: Array<{ value: string; intents: string[] }>;
         }>;
       };
     };
@@ -122,12 +121,9 @@ describe("Telegraph Miner template", () => {
         name: "intent",
         type: "string",
         intents: ["*"],
-        accepted_fields: [
-          expect.objectContaining({ value: "FACT_CHECK", intents: ["FACT_CHECK"] }),
-          expect.objectContaining({ value: "RESEARCH_SYNTHESIS", intents: ["RESEARCH_SYNTHESIS"] }),
-        ],
       }),
     ]);
+    expect(endpoint.params.body.optional[0]).not.toHaveProperty("accepted_fields");
   });
 
   it("keeps schemas top-level and matches the implemented request contract", () => {
@@ -165,6 +161,14 @@ describe("Telegraph Miner template", () => {
     ]);
     expect(config.endpoints[0]).not.toHaveProperty("input_schema");
     expect(config.endpoints[0]).not.toHaveProperty("output_schema");
+  });
+
+  it("rejects the legacy accepted_fields parameter shape refused by the live registry", () => {
+    const config = configured();
+    const intent = config.endpoints[0].params.body.optional[0] as Record<string, unknown>;
+    intent.accepted_fields = [{ value: "FACT_CHECK", intents: ["FACT_CHECK"] }];
+
+    expect(() => validateMinerConfig(config)).toThrow(/unsupported field accepted_fields/u);
   });
 
   it("uses only Telegraph's three supported signal-mapping fields", () => {
