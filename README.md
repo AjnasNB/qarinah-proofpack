@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml/badge.svg)](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-176d4a.svg)](LICENSE)
-[![Telegraph Miner](https://img.shields.io/badge/Telegraph-Miner%20717190%20ACTIVE-176d4a.svg)](https://devnode.telegraphprotocol.com/api/miners/717190)
+[![Telegraph Miner](https://img.shields.io/badge/Telegraph-Registration%20398%20ACTIVE-176d4a.svg)](https://devnode.telegraphprotocol.com/api/miners/398)
 [![Telegraph Track 3](https://img.shields.io/badge/Telegraph-Track%203%20Application-176d4a.svg)](docs/PROOFGATE-TRACK3.md)
 [![Telegraph intents](https://img.shields.io/badge/Telegraph-FACT__CHECK%20%7C%20RESEARCH__SYNTHESIS-151814.svg)](telegraph/miner.yaml)
 
