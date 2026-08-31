@@ -754,7 +754,8 @@ calls only to inflate totals. The rules explicitly disqualify metric gaming.
 
 ## Current readiness snapshot
 
-This section must be updated before final submission.
+This table distinguishes completed external actions from the remaining Track 3
+activation work.
 
 | Item | Current state on 2026-08-31 | Exit condition |
 |---|---|---|
@@ -762,15 +763,16 @@ This section must be updated before final submission.
 | ProofPack production API | Live; a real production acquisition returned a sealed pack on 2026-08-31 | Keep the endpoint healthy and archive release evidence |
 | ProofGate application | Public UI and fail-closed `/api/preflight` deployed | Add and evidence the funded x402 path |
 | Telegraph live x402 configuration | Not yet proven in production | Add funded burner secret and retain a verified paid receipt |
-| ProofPack Miner registration | Not registered | Complete official sandbox, on-chain registration, and activation |
-| Participant registration | Not evidenced in this repository | Complete the official email-verified form |
+| ProofPack Miner registration | Active: YAML Miner ID `717190`, registration `398`, CID `QmU9abRW2h7YW8quPDCoupTuoQ52ARmbNx7Xp6fHDFMAJx` | Keep active and healthy through Track 3 |
+| Track 1 Miner submission | Verified in the official submission portal for registration `398` on 2026-08-31 | Keep the exact registered YAML and owner wallet available |
+| Participant registration | Completed in the official participant portal; private confirmation retained | Keep participant details current |
 | Required Discord membership | Not evidenced in this repository | Join and monitor official Hackathon Discord |
 | X update campaign | Not evidenced in this repository | Publish genuine tagged updates |
 | Track 3 submission | Portal currently says Coming Soon | Submit when enabled and verify before deadline |
-| Live Miner counts | `FACT_CHECK`: 2; `RESEARCH_SYNTHESIS`: 3 | Refresh from catalog before every release claim |
+| Live Miner counts | `FACT_CHECK`: 3; `RESEARCH_SYNTHESIS`: 4 after ProofPack activation | Refresh from catalog before every release claim |
 
-Do not change `Not registered`, `Not evidenced`, or `Coming Soon` to a success
-claim until the corresponding external action has actually completed.
+Discord membership, X updates, funded x402 execution, and Track 3 submission
+remain explicitly unclaimed until each external action is evidenced.
 
 ## Submission positioning
 

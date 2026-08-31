@@ -31,19 +31,32 @@ request. Neither check certifies source truthfulness.
 | Floor price | `0.01` USDC |
 | Repository | <https://github.com/AjnasNB/qarinah-proofpack> |
 
-ID `717190` and slug `qarinah-proofpack` were checked against all 128 entries
-returned by Telegraph's live Miner catalog at `2026-08-31T10:53:22Z`; neither
-was present. The registration validator repeats that check at release time, so
-this snapshot is evidence of selection rather than an assumption that the ID
-can never be claimed later.
+## Completed registration evidence
 
-The same live check reported `FACT_CHECK` as canonical with two active Miners
-and `RESEARCH_SYNTHESIS` as canonical with three active Miners. Activating this
-Miner would bring `FACT_CHECK` to the hackathon's three-Miner eligibility
-threshold. To qualify that Intent for global cash prizes, the separate
-eligibility guardrail of 100 real Track-3 requests must still be met. This is
-not a Track 3 application-entry requirement. Never manufacture traffic: the
-rules prohibit metric inflation.
+| Field | Verified value |
+|---|---|
+| Activation status | `active` |
+| YAML Miner ID | `717190` |
+| On-chain registration ID | `398` |
+| IPFS CID | `QmU9abRW2h7YW8quPDCoupTuoQ52ARmbNx7Xp6fHDFMAJx` |
+| YAML SHA-256 / `bytes32` | `0x4644aafb8d3111f0c96c4ccd0eeadd193f20570ca2995875db5f9e804121c8eb` |
+| Fee address | `0x06F66Ce53eF70BdC9f98803851f7Ad7EEa1228d7` |
+| Floor | `0.01` USDC (`10000` micro-USDC) |
+| Active since | `2026-08-31T16:14:05Z` |
+| Base Sepolia transaction | [`0x181cb639e0b7046fe557163481e17f3fe9814762d83ec353afc6e922b8d95472`](https://sepolia.basescan.org/tx/0x181cb639e0b7046fe557163481e17f3fe9814762d83ec353afc6e922b8d95472) |
+| Track 1 submission | `verified` for registration `398` at `2026-08-31T16:18:16Z` |
+
+The first on-chain registration (`397`) was terminally rejected because the
+live registry no longer accepts the legacy array form of `accepted_fields`.
+Commit `67cf76a` removed that stale shape, added a regression guard, passed the
+complete 132-test release gate, and produced the byte-verified CID above. The
+official update flow deregistered `397` and activated replacement `398`.
+
+After activation, Telegraph's live catalog reported three active
+`FACT_CHECK` Miners and four active `RESEARCH_SYNTHESIS` Miners. The first
+Intent therefore meets the separate three-Miner count guardrail, but global
+cash-prize eligibility also requires 100 genuine Track-3 requests. Never
+manufacture traffic: the rules prohibit metric inflation.
 
 ## Deadline interpretation
 

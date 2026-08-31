@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml/badge.svg)](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-176d4a.svg)](LICENSE)
+[![Telegraph Miner](https://img.shields.io/badge/Telegraph-Miner%20717190%20ACTIVE-176d4a.svg)](https://devnode.telegraphprotocol.com/api/miners/717190)
 [![Telegraph Track 3](https://img.shields.io/badge/Telegraph-Track%203%20Application-176d4a.svg)](docs/PROOFGATE-TRACK3.md)
 [![Telegraph intents](https://img.shields.io/badge/Telegraph-FACT__CHECK%20%7C%20RESEARCH__SYNTHESIS-151814.svg)](telegraph/miner.yaml)
 
@@ -28,7 +29,7 @@ The primary submission is a Telegraph **Track 3 Application**. A proposed action
 Production never substitutes local or mocked intelligence. Missing wallet configuration, payment failure, unavailable Telegraph service, insufficient mapped-confidence corroboration, ambiguous policy, or insufficient distinct Miners can only reduce authority to `ESCALATE`.
 
 > [!NOTE]
-> Qarinah ProofPack remains a separate supporting Track 1 Miner and is available at `/proofpack`. As of August 31, 2026, the deployed endpoint is live but Miner ID `717190` is not yet registered or active in Telegraph's live catalog. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
+> Qarinah ProofPack is an active supporting Track 1 Miner and is available at `/proofpack`. Telegraph's live catalog resolves YAML Miner ID `717190`, slug `qarinah-proofpack`, and on-chain registration `398`; the Track 1 portal separately reports the entry as verified. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
 
 > [!WARNING]
 > The deployed ProofGate payer is not configured yet, and the current live catalog has not been proven to satisfy the default policy with two compatible, directionally aligned confidence mappings. Until a funded run returns retained verified receipts, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
@@ -333,7 +334,15 @@ CI runs the same gate on every push and pull request.
 
 ## Telegraph Miner
 
-The committed [`telegraph/miner.yaml`](telegraph/miner.yaml) is a strict deployment template for intended Miner ID `717190`, slug `qarinah-proofpack`, and both supported intents. It deliberately contains one `${PROOFPACK_PUBLIC_URL}` token so a local URL can never be registered accidentally. The ID is reserved in our configuration, not currently registered on Telegraph.
+The committed [`telegraph/miner.yaml`](telegraph/miner.yaml) is the strict deployment template registered for Miner ID `717190`, slug `qarinah-proofpack`, and both supported intents. It deliberately contains one `${PROOFPACK_PUBLIC_URL}` token so a local URL can never be registered accidentally.
+
+The active registration evidence is:
+
+- Telegraph registration ID `398`;
+- corrected IPFS CID `QmU9abRW2h7YW8quPDCoupTuoQ52ARmbNx7Xp6fHDFMAJx`;
+- YAML SHA-256 `4644aafb8d3111f0c96c4ccd0eeadd193f20570ca2995875db5f9e804121c8eb`;
+- Base Sepolia update transaction [`0x181cb639…d95472`](https://sepolia.basescan.org/tx/0x181cb639e0b7046fe557163481e17f3fe9814762d83ec353afc6e922b8d95472); and
+- a verified Track 1 submission recorded for registration `398` on August 31, 2026.
 
 After deployment:
 
