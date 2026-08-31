@@ -40,26 +40,24 @@ can never be claimed later.
 The same live check reported `FACT_CHECK` as canonical with two active Miners
 and `RESEARCH_SYNTHESIS` as canonical with three active Miners. Activating this
 Miner would bring `FACT_CHECK` to the hackathon's three-Miner eligibility
-threshold, but the separate requirement of 100 real Track-3 requests must still
-be met. Never manufacture traffic: the rules prohibit metric inflation.
+threshold. To qualify that Intent for global cash prizes, the separate
+eligibility guardrail of 100 real Track-3 requests must still be met. This is
+not a Track 3 application-entry requirement. Never manufacture traffic: the
+rules prohibit metric inflation.
 
 ## Deadline interpretation
 
-The official pages publish two complementary cutoffs:
+The official submission deadline API publishes these exact cutoffs:
 
-- The [rules](https://hackathon.telegraphprotocol.com/rules) show the Miner
-  Track running **August 17–August 31, 2026**. They do not publish a Miner-track
-  time of day. Treat **August 31, 2026** as the hard operational deadline for
-  an active on-chain Miner registration.
-- The [hackathon landing page](https://hackathon.telegraphprotocol.com/) gives
-  the explicit overall submission close as **September 7, 2026 at 23:59 UTC**
-  (**September 8 at 05:29 IST**). Track 3 runs August 31–September 7.
+- Track 1 Miners and Track 2 Scripts close **August 31, 2026 at 23:59:59 UTC**
+  (**September 1 at 05:29:59 IST**).
+- Track 3 Applications close **September 7, 2026 at 23:59:59 UTC**
+  (**September 8 at 05:29:59 IST**).
 
 Telegraph requires Miners to remain live throughout Track 3. Therefore the safe
-execution rule is: register and reach `active` on August 31, then keep the exact
-registered YAML and API operational through September 7 at 23:59 UTC. Confirm
-announcements in the required Hackathon Discord before the Miner-track cutoff;
-the public rules do not define a more precise August 31 clock time.
+execution rule is: register and reach `active` before the Track 1 cutoff, then
+keep the exact registered YAML and API operational through the Track 3 cutoff.
+Confirm announcements in the required Hackathon Discord before each cutoff.
 
 ## Release gate
 

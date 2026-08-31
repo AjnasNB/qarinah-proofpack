@@ -1,17 +1,63 @@
-# Qarinah ProofPack
+# ProofGate
 
-**Evidence-backed intelligence for autonomous agents.**
+**No proof. No action.**
 
 [![CI](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml/badge.svg)](https://github.com/AjnasNB/qarinah-proofpack/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-176d4a.svg)](LICENSE)
+[![Telegraph Track 3](https://img.shields.io/badge/Telegraph-Track%203%20Application-176d4a.svg)](docs/PROOFGATE-TRACK3.md)
 [![Telegraph intents](https://img.shields.io/badge/Telegraph-FACT__CHECK%20%7C%20RESEARCH__SYNTHESIS-151814.svg)](telegraph/miner.yaml)
 
-[**Live application**](https://qarinah-proofpack.vercel.app/) ·
+[**Live ProofGate**](https://qarinah-proofpack.vercel.app/) ·
+[**ProofPack Miner**](https://qarinah-proofpack.vercel.app/proofpack) ·
 [**ProofPack verifier**](https://qarinah-proofpack.vercel.app/verify) ·
 [**API health**](https://qarinah-proofpack.vercel.app/health) ·
-[**Telegraph submission runbook**](docs/TELEGRAPH-SUBMISSION.md)
+[**Track 3 runbook**](docs/PROOFGATE-TRACK3.md) ·
+[**Miner runbook**](docs/TELEGRAPH-SUBMISSION.md)
 
-Autonomous agents should act on evidence, not plausible answers.
+AI agents can act faster than humans can verify them. ProofGate makes an agent earn permission before a consequential action proceeds.
+
+The primary submission is a Telegraph **Track 3 Application**. A proposed action and a plain-English policy enter one preflight pipeline:
+
+1. Telegraph routes a paid request to a real ranked Miner.
+2. ProofGate requests independent live signals when the policy requires corroboration.
+3. Qarinah preserves each Miner identity, `signal_hash`, result hash, payment-receipt hash, and event relationship.
+4. Maqam applies a deterministic, bounded policy.
+5. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE` with a downloadable SHA-256 receipt.
+
+Production never substitutes local or mocked intelligence. Missing wallet configuration, payment failure, unavailable Telegraph service, insufficient mapped-confidence corroboration, ambiguous policy, or insufficient distinct Miners can only reduce authority to `ESCALATE`.
+
+> [!NOTE]
+> Qarinah ProofPack remains a separate supporting Track 1 Miner and is available at `/proofpack`. As of August 31, 2026, the deployed endpoint is live but Miner ID `717190` is not yet registered or active in Telegraph's live catalog. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
+
+## ProofGate preflight contract
+
+```http
+POST /api/preflight
+Content-Type: application/json
+
+{
+  "action": "Publish the claim: The James Webb Space Telescope launched in 2021.",
+  "policy": "Allow only when mapped provider confidence is at least 80%, at least two independent Miners support the claim, and there is no material conflict. Otherwise escalate to human review."
+}
+```
+
+The response conforms to [`proofgate.preflight.v1`](schemas/proofgate.preflight.v1.schema.json) and contains:
+
+| Field | Meaning |
+|---|---|
+| `decision` | `ALLOW`, `BLOCK`, or `ESCALATE` |
+| `authorization_issued` | `true` only when every hard rule passes with verified real Telegraph receipts |
+| `claims[]` | Extracted claim assessments and signal links |
+| `compiled_policy` | Parsed thresholds, recognized constraints, unsupported clauses, and policy hash |
+| `aggregate` | Mean catalog-mapped confidence from distinct Miners aligned with the dominant stance, unique Miner count, verified signals, conflicts, and paid cost |
+| `rules[]` | Rule-by-rule Maqam evaluation |
+| `signals[]` | Miner ID, route mode, intent, route rank, provider confidence if present, `signal_hash`, and result hash |
+| `qarinah` | Hash-linked preflight event chain |
+| `receipt` | Canonical SHA-256 receipt root and signal commitments |
+
+Telegraph does not expose one universal network confidence or one consensus endpoint. ProofGate uses provider confidence only when the selected Miner's declared signal mapping supplies it, reports the mean from distinct Miners aligned with the dominant stance, and requires enough aligned Miners to meet the confidence-coverage rule. Uncertain or opposing signals can never raise the confidence used to authorize that stance. A coincidental undeclared number has no policy authority. Distinct corroboration counts unique `miner_id` values rather than raw call count.
+
+## ProofPack evidence engine
 
 Qarinah ProofPack is a standalone [Telegraph](https://telegraphprotocol.com/) Miner and web application. It takes a factual claim or research question, gathers live public evidence, and returns a sealed machine contract with:
 
@@ -30,7 +76,17 @@ The differentiator is not a claim that our language model is smarter. ProofPack 
 
 ## Why this is Telegraph-native
 
-Telegraph routes requests by intent and historical Miner quality. ProofPack returns a structured intelligence signal that fits its Miner semantics directly:
+Telegraph is in the live authorization loop, not added as a badge or an optional data source. ProofGate first uses `POST /engine/v1/ask` so Telegraph can classify the request and select a ranked Miner. It then uses catalog-discovered direct calls only when an action policy needs distinct second opinions. Every successful call is x402-paid and preserved by its real `signal_hash`.
+
+Telegraph answers: **which intelligence provider should receive this request?**
+
+Qarinah answers: **what evidence and provenance produced this decision?**
+
+Maqam answers: **does the evidence satisfy the action policy?**
+
+ProofGate returns the authorization boundary.
+
+The supporting ProofPack Miner also exposes structured semantics:
 
 ```yaml
 semantics:
@@ -43,32 +99,42 @@ semantics:
     - RESEARCH_SYNTHESIS
 ```
 
-Telegraph answers: **which intelligence provider should receive this request?**
-
-ProofPack answers: **is the resulting evidence strong enough for an agent to act?**
-
 ## System architecture
 
 ```mermaid
 flowchart TD
-    A[Telegraph request] --> B[POST /v1/proof]
-    B --> C[Maqam-governed search]
-    C --> D[Cockroach Crawler]
-    D --> E[Canonicalize and extract passages]
-    E --> F[Deterministic stance and score]
-    F --> G{Maqam evidence contract}
-    G -->|thresholds pass| H[SUPPORTED or REFUTED]
-    G -->|credible conflict| I[MIXED and abstain]
-    G -->|evidence is weak| J[INSUFFICIENT_EVIDENCE]
-    H --> K[Bounded synthesis]
-    I --> K
-    J --> K
-    K --> L[Qarinah event chain]
-    L --> M[SHA-256 manifest seal]
-    M --> N[Verifiable ProofPack]
+    A[Proposed agent action] --> B[POST /api/preflight]
+    B --> C[Bounded claim and policy compiler]
+    C --> D[Telegraph auto-routed ask]
+    D --> E[Real ranked Miner signal]
+    E --> F{Policy needs corroboration?}
+    F -->|yes| G[Catalog-discovered direct Miner calls]
+    F -->|no| H[Normalize receipts]
+    G --> H
+    H --> I[Verify signal hashes]
+    I --> J[Qarinah event chain and receipt]
+    J --> K{Maqam action policy}
+    K -->|all hard rules pass| L[ALLOW]
+    K -->|credible refutation or forbidden conflict| M[BLOCK]
+    K -->|insufficient or operational failure| N[ESCALATE]
+
+    O[Qarinah ProofPack Miner] --> P[Live web evidence]
+    P --> Q[Cockroach Crawler]
+    Q --> R[Hashes, contradictions, abstention]
+    R --> O
 ```
 
-The production path is static-first and fail-closed:
+The ProofGate path is fail-closed:
+
+1. No client can choose a Miner ID, upstream endpoint, payment recipient, or price.
+2. The server reads the active Miner catalog and x402 challenge at request time.
+3. One auto-routed call demonstrates Telegraph's ranking path; at most two justified second-opinion calls may follow.
+4. Duplicate Miner IDs never count as independent corroboration.
+5. A response must have a real `signal_hash`, and an `ALLOW` requires verified receipts.
+6. Qarinah seals the action, policy, signals, and Maqam decision into an isolated in-memory event chain.
+7. Unsupported policy language, incomplete signals, payment errors, and timeouts produce `ESCALATE`.
+
+The supporting ProofPack path is static-first and fail-closed:
 
 1. Maqam governs anonymous Exa discovery with a bounded DuckDuckGo fallback.
 2. Cockroach Crawler fetches only validated public HTTP(S) URLs with explicit origins, robots compliance, SSRF defenses, byte limits, request limits, and time budgets.
@@ -200,19 +266,29 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-No API key is required for the default path.
+The ProofPack Miner and verifier need no payment wallet. A real ProofGate preflight requires a dedicated server-side testnet wallet funded with a small Base Sepolia USDC budget. Without that secret, `/api/preflight` returns a sealed `ESCALATE` receipt and never substitutes fixtures.
 
 ### Optional environment variables
 
 | Variable | Purpose |
 |---|---|
 | `PROOFPACK_PUBLIC_URL` | Canonical deployed HTTPS origin used by metadata and the Telegraph YAML renderer |
+| `TELEGRAPH_EVM_PRIVATE_KEY` | Server-only burner wallet key used by the official x402 client; never prefix with `NEXT_PUBLIC_` |
+| `TELEGRAPH_NODE_URL` | Optional Telegraph node origin; defaults to `https://devnode.telegraphprotocol.com` |
+| `TELEGRAPH_MAX_PAYMENT_USDC_MICROS` | Maximum accepted payment per call in 6-decimal USDC units; defaults to `50000`, or $0.05, with an absolute $0.10 safety ceiling |
+| `PROOFGATE_MAX_CALLS` | Optional hard cap from 1 through 3 paid calls per preflight |
 | `OPENAI_API_KEY` | Enables optional bounded answer synthesis through the OpenAI Responses API |
 | `OPENAI_MODEL` | Required with `OPENAI_API_KEY`; chooses the synthesis model |
 | `COCKROACH_BROWSER_ENDPOINT` | Base URL of a separately deployed Cockroach Browser daemon |
 | `COCKROACH_BROWSER_TOKEN` | Bearer token for that optional browser daemon |
 
 If either browser variable is missing, rendered fallback remains off. If either OpenAI variable is missing or synthesis fails, ProofPack uses its deterministic synthesizer.
+
+Use a burner wallet only. The current official testnet path uses Base Sepolia chain ID `84532` and USDC contract `0x036CbD53842c5426634e7929541eC2318f3dCF7e`. The x402 challenge, not this README, is authoritative for the price and payment recipient. Never commit the key, print it, expose it to the browser, or fund it with assets beyond the test budget.
+
+### Privacy-safe usage evidence
+
+Each completed preflight emits one structured `proofgate.usage.v1` server log with the opaque action ID, decision, call counts, verified and distinct Miner counts, stance counts, paid cost, reason codes, latency, and deployment commit. It deliberately excludes the action, policy, claims, IP address, raw Miner output, payment headers, signal-derived receipt IDs, and wallet material. Export these finite-retention platform logs with the matching public receipts when preparing honest Track 3 adoption evidence.
 
 ## Verification and tests
 
@@ -240,6 +316,9 @@ The suite covers:
 - Qarinah event creation, continuity, and semantic projection;
 - bounded internal-consistency checks and trusted-commitment comparison;
 - request rate limiting;
+- bounded real Telegraph discovery, x402 calls, unique-Miner accounting, and signal verification;
+- deterministic ProofGate policy compilation and fail-closed authorization;
+- Qarinah preflight receipts and canonical receipt hashing;
 - Telegraph YAML structure, semantics, hashing, and live-registry checks;
 - complete end-to-end pipeline sealing.
 
@@ -247,7 +326,7 @@ CI runs the same gate on every push and pull request.
 
 ## Telegraph Miner
 
-The committed [`telegraph/miner.yaml`](telegraph/miner.yaml) is a strict deployment template for Miner ID `717190`, slug `qarinah-proofpack`, and both supported intents. It deliberately contains one `${PROOFPACK_PUBLIC_URL}` token so a local URL can never be registered accidentally.
+The committed [`telegraph/miner.yaml`](telegraph/miner.yaml) is a strict deployment template for intended Miner ID `717190`, slug `qarinah-proofpack`, and both supported intents. It deliberately contains one `${PROOFPACK_PUBLIC_URL}` token so a local URL can never be registered accidentally. The ID is reserved in our configuration, not currently registered on Telegraph.
 
 After deployment:
 
@@ -286,6 +365,7 @@ The browser sidecar is network-integrated only. Its AGPL source is not copied, l
 ProofPack treats every search result, page title, URL, page body, excerpt, and source-provided timestamp as untrusted data.
 
 - Search and crawler content can never become a system instruction.
+- ProofGate serializes proposed claims as JSON and tells Miners to treat every string as untrusted data. This reduces direct prompt injection, but cross-Miner agreement is not proof of injection immunity; only explicit machine-readable verdicts receive directional authority.
 - Private-network destinations, credentials in URLs, and non-HTTP protocols are rejected.
 - Static crawling uses explicit origins, bounded depth, robots compliance, byte limits, timeouts, and no retries.
 - Browser fallback disables private-network access, cookies, downloads, and uploads for each new session.
@@ -301,11 +381,12 @@ Please report vulnerabilities privately as described in [`SECURITY.md`](SECURITY
 
 ```text
 app/                     Next.js application and public API routes
-components/              Interactive proof console
-docs/                    Telegraph release and submission runbook
+components/              ProofGate and ProofPack interactive consoles
+docs/                    Track 3 application and Miner submission runbooks
+lib/proofgate/           Telegraph client, policy compiler, decision, and receipt pipeline
 lib/proof/               Acquisition, scoring, policy, provenance, and verifier
 public/images/           Original generated visual direction assets
-schemas/                 Closed ProofPack JSON Schema
+schemas/                 Closed ProofGate and ProofPack JSON Schemas
 scripts/                 Asset and Telegraph release validators
 telegraph/               Miner YAML and strict local validator
 test/                    Deterministic unit and integration tests
