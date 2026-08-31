@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
   reactStrictMode: true,
+  images: {
+    unoptimized: true
+  },
   turbopack: {
     root: process.cwd()
   },
