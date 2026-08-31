@@ -4,7 +4,8 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
-const MAX_BUCKETS = 5_000;
+export const MAX_RATE_LIMIT_BUCKETS = 5_000;
+const EVICTION_LOW_WATER_MARK = Math.floor(MAX_RATE_LIMIT_BUCKETS * 0.8);
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -13,11 +14,30 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
-function prune(now: number): void {
-  if (buckets.size < MAX_BUCKETS) return;
-  for (const [key, value] of buckets) {
-    if (value.resetAt <= now) buckets.delete(key);
-    if (buckets.size < MAX_BUCKETS * 0.8) break;
+function ensureCapacity(key: string, now: number): void {
+  if (buckets.size < MAX_RATE_LIMIT_BUCKETS) return;
+
+  for (const [bucketKey, value] of buckets) {
+    if (value.resetAt <= now) buckets.delete(bucketKey);
+  }
+
+  const needsNewBucket = !buckets.has(key);
+  const maximumSizeBeforeWrite = needsNewBucket
+    ? MAX_RATE_LIMIT_BUCKETS - 1
+    : MAX_RATE_LIMIT_BUCKETS;
+  if (buckets.size <= maximumSizeBeforeWrite) return;
+
+  // Map iteration order is access order because checkRateLimit moves every
+  // touched bucket to the end. Evicting from the front is therefore a
+  // deterministic LRU policy. The low-water mark avoids a full-map scan for
+  // every new key during a burst of unique clients.
+  const targetSize = needsNewBucket
+    ? EVICTION_LOW_WATER_MARK
+    : MAX_RATE_LIMIT_BUCKETS;
+  for (const candidate of buckets.keys()) {
+    if (candidate === key) continue;
+    buckets.delete(candidate);
+    if (buckets.size <= targetSize) break;
   }
 }
 
@@ -31,12 +51,13 @@ export function checkRateLimit(
   if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(windowMs) || windowMs < 1) {
     throw new TypeError("Rate limit and window must be positive integers.");
   }
-  prune(now);
+  ensureCapacity(key, now);
   const existing = buckets.get(key);
   const bucket = !existing || existing.resetAt <= now
     ? { count: 0, resetAt: now + windowMs }
     : existing;
   bucket.count += 1;
+  buckets.delete(key);
   buckets.set(key, bucket);
   return {
     allowed: bucket.count <= limit,
