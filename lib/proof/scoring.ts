@@ -13,6 +13,7 @@ export interface ScoredCandidate extends ScoringCandidate {
   stance: ScoredStance;
   stanceScore: number;
   matchedTerms: string[];
+  temporalPrecision: number;
 }
 
 export interface DeterministicScore {
@@ -122,7 +123,12 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   const explicitSupport = SUPPORT_PATTERNS.some((pattern) => pattern.test(localEvidence));
   const claimYears = years(query);
   const localYears = years(localEvidence);
-  const evidenceYears = localYears.size ? localYears : relevantYears(excerpt, claimTerms);
+  const allRelevantYears = relevantYears(excerpt, claimTerms);
+  const allMentionedYears = years(excerpt);
+  const evidenceYears = localYears.size ? localYears : allRelevantYears;
+  const temporalPrecision = claimYears.size
+    ? 1 / Math.max(1, allMentionedYears.size)
+    : 1;
   const matchingYear = claimYears.size === 0
     || [...claimYears].some((year) => evidenceYears.has(year));
   const yearConflict = claimYears.size > 0
@@ -160,7 +166,8 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
     freshness: round(candidate.freshness),
     stance,
     stanceScore: round(stanceScore),
-    matchedTerms
+    matchedTerms,
+    temporalPrecision: round(temporalPrecision)
   };
 }
 
@@ -177,8 +184,8 @@ export function scoreEvidence(query: string, candidates: readonly ScoringCandida
   const evidence = candidates
     .map((candidate) => classifyStance(query, candidate, claimTerms))
     .sort((left, right) => {
-      const rightRank = right.relevance * right.quality * right.stanceScore;
-      const leftRank = left.relevance * left.quality * left.stanceScore;
+      const rightRank = right.relevance * right.quality * right.stanceScore * (0.4 + 0.6 * right.temporalPrecision);
+      const leftRank = left.relevance * left.quality * left.stanceScore * (0.4 + 0.6 * left.temporalPrecision);
       return rightRank - leftRank || left.url.localeCompare(right.url);
     });
 

@@ -110,6 +110,34 @@ describe("scoreEvidence", () => {
     expect(score.evidence[0].stance).toBe("REFUTE");
     expect(score.winner).toBe("REFUTE");
   });
+
+  it("ranks a precise alternate event year above a multi-year index passage", () => {
+    const score = scoreEvidence(
+      "The James Webb Space Telescope launched in 2020",
+      [
+        {
+          url: "https://science.nasa.gov/mission/webb/index",
+          domain: "nasa.gov",
+          excerpt: "April 2025 Webb monitoring update. November 2024 Webb imagery. The James Webb Space Telescope is the largest telescope ever launched. Latest 2026 images are available.",
+          relevance: 0.99,
+          quality: 0.99,
+          freshness: 0.9
+        },
+        {
+          url: "https://science.nasa.gov/mission/webb/launch",
+          domain: "nasa.gov",
+          excerpt: "The James Webb Space Telescope launched on December 25, 2021.",
+          relevance: 0.9,
+          quality: 0.95,
+          freshness: 0.7
+        }
+      ]
+    );
+
+    expect(score.evidence[0].url).toContain("/launch");
+    expect(score.evidence[0].temporalPrecision).toBe(1);
+    expect(score.evidence[1].temporalPrecision).toBeLessThan(0.5);
+  });
 });
 
 describe("tokenizeClaim", () => {

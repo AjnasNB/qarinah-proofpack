@@ -26,7 +26,8 @@ function score(overrides: Partial<DeterministicScore> = {}): DeterministicScore 
         freshness: 0.9,
         stance: "SUPPORT",
         stanceScore: 0.9,
-        matchedTerms: ["example"]
+        matchedTerms: ["example"],
+        temporalPrecision: 1
       }
     ],
     ...overrides
