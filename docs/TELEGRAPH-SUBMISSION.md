@@ -9,6 +9,12 @@ head, and a Maqam abstention decision.
 This is the registration and submission source of truth for the project. It
 contains no wallet key, API key, access token, or hosted secret.
 
+The offline verifier establishes internal consistency only. It does not
+authenticate a self-contained pack, because an untrusted party can recompute
+its hashes. For cross-system integrity, compare `verification.manifest_hash`
+with the trusted Telegraph signal or on-chain commitment captured for that
+request. Neither check certifies source truthfulness.
+
 ## Submission identity
 
 | Field | Value |

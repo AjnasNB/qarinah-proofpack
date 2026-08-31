@@ -6,6 +6,11 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-176d4a.svg)](LICENSE)
 [![Telegraph intents](https://img.shields.io/badge/Telegraph-FACT__CHECK%20%7C%20RESEARCH__SYNTHESIS-151814.svg)](telegraph/miner.yaml)
 
+[**Live application**](https://qarinah-proofpack.vercel.app/) ·
+[**ProofPack verifier**](https://qarinah-proofpack.vercel.app/verify) ·
+[**API health**](https://qarinah-proofpack.vercel.app/health) ·
+[**Telegraph submission runbook**](docs/TELEGRAPH-SUBMISSION.md)
+
 Autonomous agents should act on evidence, not plausible answers.
 
 Qarinah ProofPack is a standalone [Telegraph](https://telegraphprotocol.com/) Miner and web application. It takes a factual claim or research question, gathers live public evidence, and returns a sealed machine contract with:
@@ -14,14 +19,14 @@ Qarinah ProofPack is a standalone [Telegraph](https://telegraphprotocol.com/) Mi
 - calculated confidence and its complete component breakdown;
 - supporting, refuting, neutral, and contradictory evidence records;
 - canonical source URLs, retrieval times, and SHA-256 content hashes;
-- a tamper-evident, in-memory Qarinah evidence-event chain;
+- a hash-linked, in-memory Qarinah evidence-event chain;
 - a Maqam evidence-policy decision and explicit abstention;
-- an offline-verifiable manifest seal.
+- an offline-checkable manifest seal that can be compared with a trusted commitment.
 
 The differentiator is not a claim that our language model is smarter. ProofPack knows when the available evidence is too weak for an autonomous system to act.
 
 > [!IMPORTANT]
-> Hash verification proves pack integrity, evidence-record integrity, and Qarinah chain continuity. It does not cryptographically prove that a source is truthful. Source quality, diversity, relevance, agreement, and the Maqam policy determine whether the pack authorizes a decisive verdict.
+> Self-verification proves internal consistency: the payload matches its embedded manifest, evidence records match their hashes, and the Qarinah chain is continuous. It does not authenticate the issuer, because anyone can recompute an untrusted self-contained hash. Compare `verification.manifest_hash` with a trusted Telegraph/on-chain commitment to detect replacement or resealing. No hash can prove that a source is truthful; source quality, diversity, relevance, agreement, and the Maqam policy determine whether the pack authorizes a decisive verdict.
 
 ## Why this is Telegraph-native
 
@@ -155,7 +160,7 @@ curl --silent --request POST http://localhost:3000/v1/proof \
 
 ### Verify a pack
 
-`POST /v1/verify` performs closed-contract validation, evidence-hash verification, manifest verification, event validation, Qarinah continuity checks, reference checks, and policy-invariant checks without network access.
+`POST /v1/verify` performs bounded closed-contract validation, evidence-hash checks, embedded-manifest consistency checks, event validation, Qarinah continuity checks, reference checks, and policy-invariant checks without network access.
 
 ```bash
 curl --silent --request POST http://localhost:3000/v1/proof \
@@ -168,7 +173,7 @@ curl --request POST http://localhost:3000/v1/verify \
   --data-binary @proofpack.json
 ```
 
-Successful verification returns `valid: true` plus separate manifest, evidence, event-chain, and contract results. A modified pack returns HTTP 422 with precise error paths.
+Successful verification returns `valid: true` plus separate manifest, evidence, event-chain, and contract results. A pack modified without resealing returns HTTP 422 with precise error paths. Authenticity requires comparing its manifest hash with a trusted commitment, such as the value projected through Telegraph.
 
 ### Health
 
@@ -233,7 +238,7 @@ The suite covers:
 - scoring, contradictions, policy thresholds, and abstention;
 - canonical JSON and evidence hashing;
 - Qarinah event creation, continuity, and semantic projection;
-- tamper detection and closed-contract verification;
+- bounded internal-consistency checks and trusted-commitment comparison;
 - request rate limiting;
 - Telegraph YAML structure, semantics, hashing, and live-registry checks;
 - complete end-to-end pipeline sealing.

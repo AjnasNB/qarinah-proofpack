@@ -17,9 +17,9 @@ import type { FormEvent } from "react";
 import type { ProofIntent, ProofPack } from "@/lib/proof/types";
 
 const examples = [
-  "Did the James Webb Space Telescope launch in 2021?",
-  "Was Python first released in 1991?",
-  "Did WHO end the COVID-19 global health emergency on May 5, 2023?",
+  { label: "Supported", query: "Did the James Webb Space Telescope launch in 2021?" },
+  { label: "Refuted", query: "Did the James Webb Space Telescope launch in 2020?" },
+  { label: "Abstain", query: "Did OpenAI announce Qarinah ProofPack as an official product on August 31, 2026?" },
 ];
 
 function percent(value: number) {
@@ -32,7 +32,7 @@ function shortHash(value: string) {
 }
 
 export function ProofConsole() {
-  const [query, setQuery] = useState(examples[0]);
+  const [query, setQuery] = useState(examples[0].query);
   const [intent, setIntent] = useState<ProofIntent>("FACT_CHECK");
   const [pack, setPack] = useState<ProofPack | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,9 +106,9 @@ export function ProofConsole() {
         />
         <div className="example-row" aria-label="Example claims">
           <span>Examples:</span>
-          {examples.map((example, index) => (
-            <button key={example} type="button" onClick={() => setQuery(example)} title={example}>
-              {index + 1}
+          {examples.map((example) => (
+            <button key={example.label} type="button" onClick={() => setQuery(example.query)} title={example.query}>
+              {example.label}
             </button>
           ))}
         </div>

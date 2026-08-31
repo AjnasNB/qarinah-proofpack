@@ -5,7 +5,7 @@ import { VerificationConsole } from "@/components/verification-console";
 
 export const metadata: Metadata = {
   title: "Verify a ProofPack | Qarinah ProofPack",
-  description: "Verify a ProofPack manifest, evidence hashes, contract, and Qarinah event chain without network access.",
+  description: "Check a ProofPack's internal manifest, evidence hashes, contract, and Qarinah event chain without network access.",
 };
 
 export default function VerifyPage() {
@@ -28,13 +28,13 @@ export default function VerifyPage() {
       <section className="verify-shell shell">
         <div className="verify-intro">
           <p className="kicker">OFFLINE VERIFICATION</p>
-          <h1>Trust the seal.<br />Inspect the chain.</h1>
+          <h1>Check the seal.<br />Inspect the chain.</h1>
           <p>
-            Paste or upload any ProofPack. The verifier checks its closed contract, manifest, evidence records, references, policy invariants, and Qarinah continuity without fetching a source.
+            Paste or upload any ProofPack. The verifier checks its closed contract, internal manifest consistency, evidence records, references, policy invariants, and Qarinah continuity without fetching a source.
           </p>
           <div className="verify-boundary">
             <ShieldCheck size={21} weight="duotone" aria-hidden="true" />
-            <span>Verification makes no network requests and cannot certify source truthfulness.</span>
+            <span>Self-verification does not authenticate the issuer or certify source truthfulness. Compare the manifest hash with a trusted Telegraph commitment.</span>
           </div>
         </div>
         <VerificationConsole />

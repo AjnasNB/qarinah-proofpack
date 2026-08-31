@@ -18,7 +18,7 @@ const repos = [
   {
     name: "Qarinah",
     role: "Provenance",
-    description: "Creates the tamper-evident event chain embedded in every sealed pack.",
+    description: "Creates the hash-linked event chain embedded in every sealed pack.",
     href: "https://github.com/AjnasNB/qarinah",
   },
   {
@@ -126,7 +126,7 @@ export default function Home() {
             <div className="truth-note">
               <Warning size={22} weight="duotone" aria-hidden="true" />
               <p>
-                The cryptographic seal proves pack integrity and chain continuity. Evidence quality and policy determine the verdict.
+                The seal checks internal consistency and chain continuity. Compare its manifest hash with a trusted Telegraph commitment to establish integrity across systems; evidence quality and policy determine the verdict.
               </p>
             </div>
           </div>

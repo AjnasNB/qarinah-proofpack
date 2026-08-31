@@ -82,7 +82,7 @@ export function VerificationConsole() {
         />
         <button className="verify-button" type="submit" disabled={loading || value.trim().length === 0}>
           <ShieldCheck size={19} weight="bold" aria-hidden="true" />
-          {loading ? "Verifying pack" : "Verify integrity"}
+          {loading ? "Checking pack" : "Check internal consistency"}
         </button>
       </form>
 
@@ -97,7 +97,7 @@ export function VerificationConsole() {
           <div className={result.valid ? "verify-result valid" : "verify-result invalid"}>
             <div className="verify-result-title">
               {result.valid ? <CheckCircle size={25} weight="fill" /> : <XCircle size={25} weight="fill" />}
-              <div><strong>{result.valid ? "ProofPack is intact" : "Verification failed"}</strong><span>{result.valid ? "All cryptographic and contract checks passed." : `${result.errors.length} issue${result.errors.length === 1 ? "" : "s"} detected.`}</span></div>
+              <div><strong>{result.valid ? "ProofPack is internally consistent" : "Consistency check failed"}</strong><span>{result.valid ? "Declared hashes, chain links, and contract invariants agree. Compare the manifest with a trusted commitment for authenticity." : `${result.errors.length} issue${result.errors.length === 1 ? "" : "s"} detected.`}</span></div>
             </div>
             <div className="verification-checks">
               {[
