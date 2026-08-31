@@ -12,4 +12,5 @@ dist/
 .DS_Store
 Thumbs.db
 telegraph.local.yaml
+telegraph/miner.rendered.yaml
 artifacts/private/
