@@ -54,6 +54,31 @@ const SUPPORT_PATTERNS = [
   /\b(?:according to|statement from|press release|scheduled for|will be available)\b/i
 ];
 
+const TEMPORAL_EVENT_FAMILIES = [
+  { id: "launch", pattern: /\blaunch(?:ed|es|ing)?\b/giu },
+  { id: "release", pattern: /\breleas(?:e|ed|es|ing)\b/giu },
+  { id: "announce", pattern: /\bannounc(?:e|ed|es|ing)\b/giu },
+  { id: "publish", pattern: /\bpublish(?:ed|es|ing)?\b/giu },
+  { id: "schedule", pattern: /\bschedul(?:e|ed|es|ing)\b/giu },
+  { id: "start", pattern: /\b(?:start|begin)(?:s|ning|ned|ed|ing)?\b/giu },
+  { id: "open", pattern: /\bopen(?:ed|s|ing)?\b/giu },
+  { id: "close", pattern: /\b(?:clos(?:e|ed|es|ing)|end(?:ed|s|ing)?)\b/giu },
+  { id: "acquire", pattern: /\bacquir(?:e|ed|es|ing)\b/giu },
+  { id: "merge", pattern: /\bmerg(?:e|ed|es|ing)\b/giu },
+  { id: "file", pattern: /\bfil(?:e|ed|es|ing)\b/giu }
+] as const;
+
+const RESCHEDULE_DESTINATION_PATTERN = /\b(?:delay(?:ed|s|ing)?|postpon(?:e|ed|es|ing)|push(?:ed|es|ing)?|mov(?:e|ed|es|ing))\b[\s\S]{0,220}?\b(?:until|to)\b[\s\S]{0,48}?\b(1\d{3}|20\d{2})\b/giu;
+const RESCHEDULE_FOR_DESTINATION_PATTERN = /\breschedul(?:e|ed|es|ing)\b[\s\S]{0,100}?\b(?:for|to)\b[\s\S]{0,48}?\b(1\d{3}|20\d{2})\b/giu;
+const TARGETING_DESTINATION_PATTERN = /\b(?:now\s+(?:(?:is|are)\s+)?targeting|targeting)\b[\s\S]{0,64}?\b(1\d{3}|20\d{2})\b[\s\S]{0,48}?\bfor\s+(?:the\s+)?(launch(?:ed|es|ing)?|releas(?:e|ed|es|ing))\b/giu;
+const EVENT_DATE_CUE_PATTERN = /\b(?:in|on|for|to|until|by|during|scheduled|expected|targeted|date)\b/iu;
+
+interface LocatedMatch {
+  value: string;
+  start: number;
+  end: number;
+}
+
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
@@ -99,6 +124,115 @@ function years(value: string): Set<string> {
   return new Set(value.match(/\b(?:1\d{3}|20\d{2})\b/gu) ?? []);
 }
 
+function locatedYears(value: string): LocatedMatch[] {
+  return [...value.matchAll(/\b(?:1\d{3}|20\d{2})\b/gu)].map((match) => ({
+    value: match[0],
+    start: match.index,
+    end: match.index + match[0].length
+  }));
+}
+
+function spanDistance(left: LocatedMatch, right: LocatedMatch): number {
+  if (left.end < right.start) return right.start - left.end;
+  if (right.end < left.start) return left.start - right.end;
+  return 0;
+}
+
+function focusedEventFamilyIds(query: string): Set<string> {
+  const queryYears = locatedYears(query);
+  if (!queryYears.length) return new Set();
+  const matches: Array<LocatedMatch & { id: string }> = [];
+  for (const family of TEMPORAL_EVENT_FAMILIES) {
+    for (const match of query.matchAll(family.pattern)) {
+      matches.push({
+        id: family.id,
+        value: match[0],
+        start: match.index,
+        end: match.index + match[0].length
+      });
+    }
+  }
+  if (!matches.length) return new Set();
+  const minimumDistance = Math.min(...matches.map((match) => (
+    Math.min(...queryYears.map((year) => spanDistance(match, year)))
+  )));
+  return new Set(matches
+    .filter((match) => Math.min(...queryYears.map((year) => spanDistance(match, year))) === minimumDistance)
+    .map((match) => match.id));
+}
+
+/**
+ * Find years attached to the event the claim dates, rather than treating an
+ * article's publication/update year as the event year. The caller deliberately
+ * falls back to passage-level years when this conservative relation finder has
+ * no result.
+ */
+function eventYears(value: string, query: string, allowHeuristic = true): Set<string> {
+  const focusedIds = focusedEventFamilyIds(query);
+  if (!focusedIds.size) return new Set();
+  const anchors: LocatedMatch[] = [];
+  for (const family of TEMPORAL_EVENT_FAMILIES) {
+    if (!focusedIds.has(family.id)) continue;
+    for (const match of value.matchAll(family.pattern)) {
+      anchors.push({
+        value: match[0],
+        start: match.index,
+        end: match.index + match[0].length
+      });
+    }
+  }
+  if (!anchors.length) return new Set();
+
+  // A rescheduling destination supersedes an earlier target year. Require the
+  // rescheduling phrase to occur near the queried event so unrelated dates do
+  // not influence classification.
+  const destinations = [
+    ...value.matchAll(RESCHEDULE_DESTINATION_PATTERN),
+    ...value.matchAll(RESCHEDULE_FOR_DESTINATION_PATTERN)
+  ]
+    .filter((match) => anchors.some((anchor) => spanDistance(anchor, {
+      value: match[0],
+      start: match.index,
+      end: match.index + match[0].length
+    }) <= 120))
+    .map((match) => match[1]);
+  if (destinations.length) return new Set(destinations);
+
+  const targetedDestinations = [...value.matchAll(TARGETING_DESTINATION_PATTERN)]
+    .filter((match) => {
+      const eventId = match[2].toLocaleLowerCase("en-US").startsWith("launch") ? "launch" : "release";
+      return focusedIds.has(eventId);
+    })
+    .map((match) => match[1]);
+  if (targetedDestinations.length) return new Set(targetedDestinations);
+  if (!allowHeuristic) return new Set();
+
+  const foundYears = locatedYears(value);
+  if (!foundYears.length) return new Set();
+  const associated = new Set<string>();
+  for (const anchor of anchors) {
+    const ranked = foundYears
+      .map((year) => {
+        const after = year.start >= anchor.end;
+        const between = after
+          ? value.slice(anchor.end, year.start)
+          : value.slice(year.end, anchor.start);
+        const distance = spanDistance(anchor, year);
+        const cue = after && distance <= 100 && EVENT_DATE_CUE_PATTERN.test(between);
+        const eligible = cue || distance <= (after ? 60 : 80);
+        return {
+          year,
+          eligible,
+          rank: (cue ? 0 : 1) + distance / 1_000
+        };
+      })
+      .filter((item) => item.eligible)
+      .sort((left, right) => left.rank - right.rank || left.year.start - right.year.start);
+    if (ranked.length) associated.add(ranked[0].year.value);
+  }
+  return associated;
+}
+
 function relevantYears(value: string, claimTerms: readonly string[]): Set<string> {
   const found = new Set<string>();
   const minimumMatches = Math.min(2, Math.max(1, claimTerms.length));
@@ -123,9 +257,17 @@ function classifyStance(query: string, candidate: ScoringCandidate, claimTerms: 
   const explicitSupport = SUPPORT_PATTERNS.some((pattern) => pattern.test(localEvidence));
   const claimYears = years(query);
   const localYears = years(localEvidence);
+  const authoritativeEventYears = eventYears(excerpt, query, false);
+  const localEventYears = eventYears(localEvidence, query);
   const allRelevantYears = relevantYears(excerpt, claimTerms);
   const allMentionedYears = years(excerpt);
-  const evidenceYears = localYears.size ? localYears : allRelevantYears;
+  const evidenceYears = authoritativeEventYears.size
+    ? authoritativeEventYears
+    : localEventYears.size
+      ? localEventYears
+      : localYears.size
+        ? localYears
+        : allRelevantYears;
   const temporalPrecision = claimYears.size
     ? 1 / Math.max(1, allMentionedYears.size)
     : 1;

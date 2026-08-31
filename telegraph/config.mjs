@@ -336,6 +336,16 @@ export function validateMinerConfig(value) {
   if (!queryParam || queryParam.type !== "string") {
     fail("endpoints.0.params must declare required string body parameter query.");
   }
+  const intentParam = endpoint.params?.body?.optional?.find((item) => item?.name === "intent");
+  if (intentParam?.type !== "string"
+    || intentParam.intents?.length !== 1
+    || intentParam.intents[0] !== "*"
+    || intentParam.accepted_fields?.length !== TELEGRAPH_INTENTS.length
+    || !TELEGRAPH_INTENTS.every((intent) => intentParam.accepted_fields.some((item) => (
+      item?.value === intent && item?.intents?.length === 1 && item.intents[0] === intent
+    )))) {
+    fail("endpoints.0.params must map each supported intent to the optional intent body parameter.");
+  }
 
   const inputSchema = assertRecord(config.input_schema, "input_schema");
   if (inputSchema.type !== "object" || inputSchema.additionalProperties !== false) {
@@ -404,8 +414,11 @@ export function validateMinerConfig(value) {
   if (request.endpoint !== "proof" || request.method !== "POST") {
     fail("on_chain.request.0 must target proof with POST.");
   }
-  if (request.body?.query?.source !== "strings.0" || Object.keys(request.body).length !== 1) {
-    fail("on_chain.request.0.body must map only query from strings.0.");
+  if (request.body?.query?.source !== "strings.0"
+    || request.body?.intent?.source !== "strings.1"
+    || request.body?.intent?.optional !== true
+    || Object.keys(request.body).length !== 2) {
+    fail("on_chain.request.0.body must map query from strings.0 and optional intent from strings.1.");
   }
 
   return config;

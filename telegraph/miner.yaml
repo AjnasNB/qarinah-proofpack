@@ -46,6 +46,23 @@ endpoints:
             description: >-
               The concrete claim to verify or research question to synthesize.
               Must be nonblank and no longer than 2048 Unicode characters.
+        optional:
+          - name: intent
+            type: string
+            intents:
+              - "*"
+            description: >-
+              The routed Telegraph intent. Send the value selected by the
+              request so ProofPack preserves it in the sealed request record.
+            accepted_fields:
+              - value: FACT_CHECK
+                intents:
+                  - FACT_CHECK
+                description: Verify a concrete factual claim.
+              - value: RESEARCH_SYNTHESIS
+                intents:
+                  - RESEARCH_SYNTHESIS
+                description: Synthesize a broader research question.
 
 input_schema:
   type: object
@@ -63,7 +80,7 @@ input_schema:
       enum:
         - FACT_CHECK
         - RESEARCH_SYNTHESIS
-      description: Optional explicit intent; otherwise the service infers it from the query.
+      description: Optional explicit routed intent; otherwise the service conservatively infers it from the query.
     request_id:
       type: string
       minLength: 1
@@ -531,3 +548,6 @@ on_chain:
       body:
         query:
           source: strings.0
+        intent:
+          source: strings.1
+          optional: true

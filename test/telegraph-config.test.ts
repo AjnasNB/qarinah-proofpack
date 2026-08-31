@@ -44,6 +44,12 @@ interface TelegraphConfigShape {
     params: {
       body: {
         required: Array<{ name: string; type: string; intents: string[] }>;
+        optional: Array<{
+          name: string;
+          type: string;
+          intents: string[];
+          accepted_fields: Array<{ value: string; intents: string[] }>;
+        }>;
       };
     };
   }>;
@@ -65,7 +71,7 @@ interface TelegraphConfigShape {
     request: Array<{
       endpoint: string;
       method: string;
-      body: Record<string, { source: string }>;
+      body: Record<string, { source: string; optional?: boolean }>;
     }>;
   };
 }
@@ -110,6 +116,17 @@ describe("Telegraph Miner template", () => {
     });
     expect(endpoint.params.body.required).toEqual([
       expect.objectContaining({ name: "query", type: "string", intents: ["*"] }),
+    ]);
+    expect(endpoint.params.body.optional).toEqual([
+      expect.objectContaining({
+        name: "intent",
+        type: "string",
+        intents: ["*"],
+        accepted_fields: [
+          expect.objectContaining({ value: "FACT_CHECK", intents: ["FACT_CHECK"] }),
+          expect.objectContaining({ value: "RESEARCH_SYNTHESIS", intents: ["RESEARCH_SYNTHESIS"] }),
+        ],
+      }),
     ]);
   });
 
@@ -184,7 +201,14 @@ describe("Telegraph Miner template", () => {
     ]);
     expect(onChain.fields.bools.map((field) => field.source_path)).toEqual(["abstained"]);
     expect(onChain.request).toEqual([
-      { endpoint: "proof", method: "POST", body: { query: { source: "strings.0" } } },
+      {
+        endpoint: "proof",
+        method: "POST",
+        body: {
+          query: { source: "strings.0" },
+          intent: { source: "strings.1", optional: true },
+        },
+      },
     ]);
   });
 

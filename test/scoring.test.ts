@@ -111,6 +111,86 @@ describe("scoreEvidence", () => {
     expect(score.winner).toBe("REFUTE");
   });
 
+  it("does not confuse an article publication year with the reported launch year", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2020?",
+      [{
+        url: "https://science.nasa.gov/mission/webb/launch-update",
+        domain: "nasa.gov",
+        excerpt: "A NASA update published in 2020 said the James Webb Space Telescope was scheduled to launch in 2021.",
+        relevance: 0.96,
+        quality: 0.98,
+        freshness: 0.7
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("REFUTE");
+    expect(score.supportWeight).toBe(0);
+    expect(score.winner).toBe("REFUTE");
+  });
+
+  it("uses a postponed event's destination year instead of its former target", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2020?",
+      [{
+        url: "https://science.nasa.gov/mission/webb/schedule",
+        domain: "nasa.gov",
+        excerpt: "The James Webb Space Telescope launch, initially targeted for 2020, was postponed until 2021.",
+        relevance: 0.97,
+        quality: 0.98,
+        freshness: 0.7
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("REFUTE");
+    expect(score.supportWeight).toBe(0);
+  });
+
+  it("preserves support when the event itself is explicitly dated to the claim year", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2020?",
+      [{
+        url: "https://example.test/direct-event-date",
+        domain: "example.test",
+        excerpt: "An article published in 2021 states that the James Webb Space Telescope launched in 2020.",
+        relevance: 0.96,
+        quality: 0.9,
+        freshness: 0.7
+      }]
+    );
+
+    expect(score.evidence[0].stance).toBe("SUPPORT");
+    expect(score.refuteWeight).toBe(0);
+  });
+
+  it("refutes the 2020 JWST claim from the exact NASA delay and target-date passages", () => {
+    const score = scoreEvidence(
+      "Did the James Webb Space Telescope launch in 2020?",
+      [
+        {
+          url: "https://www.nasa.gov/news-release/nasa-announces-seven-month-launch-delay-for-jwst/",
+          domain: "nasa.gov",
+          excerpt: "NASA announces seven-month launch delay for JWST July 16, 2020. NASA officials said Thursday the launch will be delayed seven months to Oct. 31, 2021.",
+          relevance: 0.95,
+          quality: 0.98,
+          freshness: 0.35
+        },
+        {
+          url: "https://www.nasa.gov/news-release/nasa-announces-new-james-webb-space-telescope-target-launch-date/",
+          domain: "nasa.gov",
+          excerpt: "NASA Announces New James Webb Space Telescope Target Launch Date. Jul 16, 2020. NASA now is targeting Oct. 31, 2021, for the launch. Previously, Webb was scheduled to launch in March 2021.",
+          relevance: 0.99,
+          quality: 0.98,
+          freshness: 0.35
+        }
+      ]
+    );
+
+    expect(score.evidence.map((item) => item.stance)).toEqual(["REFUTE", "REFUTE"]);
+    expect(score.supportWeight).toBe(0);
+    expect(score.winner).toBe("REFUTE");
+  });
+
   it("ranks a precise alternate event year above a multi-year index passage", () => {
     const score = scoreEvidence(
       "The James Webb Space Telescope launched in 2020",

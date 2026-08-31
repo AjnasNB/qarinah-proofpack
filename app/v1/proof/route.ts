@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { inferProofIntent } from "@/lib/proof/intent";
 import { buildProofPack } from "@/lib/proof/pipeline";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 16 * 1024;
 const requestSchema = z.object({
   query: z.string().min(3).max(2_048),
-  intent: z.enum(["FACT_CHECK", "RESEARCH_SYNTHESIS"]).optional().default("FACT_CHECK"),
+  intent: z.enum(["FACT_CHECK", "RESEARCH_SYNTHESIS"]).optional(),
   request_id: z.string().min(1).max(256).optional(),
   as_of: z.iso.datetime().nullable().optional(),
 }).strict();
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
     const pack = await buildProofPack({
       ...parsed.data,
       query,
+      intent: parsed.data.intent ?? inferProofIntent(query),
       ...(requestId === undefined ? {} : { request_id: requestId }),
       ...(parsed.data.as_of ? { as_of: new Date(parsed.data.as_of).toISOString() } : {}),
     }, { signal });
