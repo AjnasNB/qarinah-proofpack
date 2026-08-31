@@ -2,7 +2,7 @@
   "name": "qarinah-proofpack",
   "version": "0.1.0",
   "private": true,
-  "description": "Evidence-backed, hash-verifiable research intelligence for autonomous agents on Telegraph.",
+  "description": "ProofGate is a Telegraph-native pre-action trust firewall powered by Qarinah ProofPack and Maqam.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -21,6 +21,9 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",
+    "@x402/core": "2.11.0",
+    "@x402/evm": "2.11.0",
+    "@x402/fetch": "2.11.0",
     "cheerio": "1.2.0",
     "cockroach-crawler": "0.7.0",
     "maqam": "0.3.3",
@@ -30,6 +33,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tldts": "7.4.11",
+    "viem": "2.56.1",
     "zod": "4.5.4"
   },
   "devDependencies": {
