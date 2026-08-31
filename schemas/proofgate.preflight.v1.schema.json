@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qarinah.io/schemas/proofgate.preflight.v1.schema.json",
+  "title": "ProofGate preflight v1",
+  "description": "A fail-closed pre-action authorization receipt backed by verified Telegraph signals, Qarinah provenance, and a Maqam authorization boundary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action_id",
+    "generated_at",
+    "decision",
+    "authorization_issued",
+    "action",
+    "claims",
+    "compiled_policy",
+    "aggregate",
+    "rules",
+    "signals",
+    "qarinah",
+    "reason",
+    "reason_codes",
+    "operational",
+    "receipt"
+  ],
+  "properties": {
+    "schema_version": { "const": "proofgate.preflight.v1" },
+    "action_id": { "type": "string", "pattern": "^PG-[0-9a-f]{20}$" },
+    "generated_at": { "$ref": "#/$defs/timestamp" },
+    "decision": { "$ref": "#/$defs/decision" },
+    "authorization_issued": { "type": "boolean" },
+    "action": { "type": "string", "minLength": 3, "maxLength": 2048 },
+    "claims": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "compiled_policy": { "$ref": "#/$defs/policy" },
+    "aggregate": { "$ref": "#/$defs/aggregate" },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": { "$ref": "#/$defs/rule" }
+    },
+    "signals": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/signal" }
+    },
+    "qarinah": { "$ref": "#/$defs/qarinahChain" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "reason_codes": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "maxLength": 128 }
+    },
+    "operational": { "$ref": "#/$defs/operational" },
+    "receipt": { "$ref": "#/$defs/receipt" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "ALLOW" } }, "required": ["decision"] },
+      "then": { "properties": { "authorization_issued": { "const": true } } },
+      "else": { "properties": { "authorization_issued": { "const": false } } }
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signalHash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{64}$"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "nullableScore": {
+      "oneOf": [
+        { "$ref": "#/$defs/score" },
+        { "type": "null" }
+      ]
+    },
+    "decision": {
+      "enum": ["ALLOW", "BLOCK", "ESCALATE"]
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "claim", "verdict", "confidence", "supporting_signals", "refuting_signals", "uncertain_signals", "signal_hashes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^CL-[0-9]{3}-[0-9a-f]{12}$" },
+        "claim": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "verdict": { "enum": ["SUPPORTED", "REFUTED", "UNCERTAIN", "CONFLICTED"] },
+        "confidence": { "$ref": "#/$defs/nullableScore" },
+        "supporting_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "refuting_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "uncertain_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "signal_hashes": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/signalHash" }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "source", "min_confidence", "min_distinct_miners", "min_verified_signals", "min_supporting_signals", "max_conflict_score", "require_all_claims_supported", "block_on_credible_refutation", "block_on_any_conflict", "recognized_constraints", "unsupported_clauses", "policy_hash"],
+      "properties": {
+        "schema_version": { "const": "maqam.proofgate-policy.v1" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "min_confidence": { "$ref": "#/$defs/score" },
+        "min_distinct_miners": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "min_verified_signals": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "min_supporting_signals": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "max_conflict_score": { "$ref": "#/$defs/score" },
+        "require_all_claims_supported": { "const": true },
+        "block_on_credible_refutation": { "type": "boolean" },
+        "block_on_any_conflict": { "type": "boolean" },
+        "recognized_constraints": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "maxLength": 128 }
+        },
+        "unsupported_clauses": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "maxLength": 4096 }
+        },
+        "policy_hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "supporting_signals", "refuting_signals", "uncertain_signals", "distinct_miners", "verified_signals", "conflict_score", "total_cost_usd"],
+      "properties": {
+        "confidence": { "$ref": "#/$defs/nullableScore" },
+        "supporting_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "refuting_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "uncertain_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "distinct_miners": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "verified_signals": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "conflict_score": { "$ref": "#/$defs/score" },
+        "total_cost_usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "passed", "actual", "required"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "maxLength": 128 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "passed": { "type": "boolean" },
+        "actual": { "type": ["number", "string", "boolean", "null"] },
+        "required": { "type": ["number", "string", "boolean"] }
+      }
+    },
+    "signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "route_mode", "requested_intent", "intent", "miner_id", "miner_slug", "miner_name", "rank_at_request", "endpoint", "cost_usd", "timestamp", "signal_hash", "signal_verified", "signal_verification", "payment_response_hash", "result_hash", "signal_mapping", "confidence", "label", "reason", "stance", "claim_assessments", "warnings"],
+      "properties": {
+        "receipt_id": { "type": "string", "pattern": "^TG-[0-9a-f]{16}$" },
+        "route_mode": { "enum": ["AUTO", "DIRECT"] },
+        "requested_intent": { "$ref": "#/$defs/intent" },
+        "intent": { "oneOf": [{ "$ref": "#/$defs/intent" }, { "type": "null" }] },
+        "miner_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "miner_slug": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "miner_name": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "rank_at_request": { "type": ["integer", "null"], "minimum": 0 },
+        "endpoint": { "type": "string", "maxLength": 2048 },
+        "cost_usd": { "type": ["number", "null"], "minimum": 0 },
+        "timestamp": {
+          "oneOf": [
+            { "$ref": "#/$defs/timestamp" },
+            { "type": "null" }
+          ]
+        },
+        "signal_hash": { "$ref": "#/$defs/signalHash" },
+        "signal_verified": { "type": "boolean" },
+        "signal_verification": { "$ref": "#/$defs/signalVerification" },
+        "payment_response_hash": {
+          "oneOf": [
+            { "$ref": "#/$defs/hash" },
+            { "type": "null" }
+          ]
+        },
+        "result_hash": { "$ref": "#/$defs/hash" },
+        "signal_mapping": { "$ref": "#/$defs/signalMapping" },
+        "confidence": { "$ref": "#/$defs/nullableScore" },
+        "label": { "type": ["string", "null"], "maxLength": 2000 },
+        "reason": { "type": ["string", "null"], "maxLength": 2000 },
+        "stance": { "$ref": "#/$defs/stance" },
+        "claim_assessments": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/claimAssessment" }
+        },
+        "warnings": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "intent": {
+      "enum": ["FACT_CHECK", "RESEARCH_SYNTHESIS"]
+    },
+    "stance": {
+      "enum": ["SUPPORTS", "REFUTES", "UNCERTAIN"]
+    },
+    "signalVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "commitment", "checked_at"],
+      "properties": {
+        "algorithm": { "type": ["string", "null"], "maxLength": 128 },
+        "commitment": { "type": ["string", "null"], "maxLength": 128 },
+        "checked_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "signalMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence_field", "label_field", "reason_field"],
+      "properties": {
+        "confidence_field": { "type": ["string", "null"], "maxLength": 512 },
+        "label_field": { "type": ["string", "null"], "maxLength": 512 },
+        "reason_field": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "claimAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "claim", "stance", "confidence"],
+      "properties": {
+        "claim_id": { "type": "string", "pattern": "^CL-[0-9]{3}-[0-9a-f]{12}$" },
+        "claim": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "stance": { "$ref": "#/$defs/stance" },
+        "confidence": { "$ref": "#/$defs/nullableScore" }
+      }
+    },
+    "operational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["telegraph_configured", "paid_calls_attempted", "paid_calls_succeeded"],
+      "properties": {
+        "telegraph_configured": { "type": "boolean" },
+        "paid_calls_attempted": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "paid_calls_succeeded": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "algorithm", "canonicalization", "scope", "root_hash", "qarinah_head_hash", "telegraph_signal_hashes"],
+      "properties": {
+        "schema_version": { "const": "proofgate.receipt.v1" },
+        "algorithm": { "const": "SHA-256" },
+        "canonicalization": { "const": "proofgate.canonical-json.v1" },
+        "scope": { "const": "preflight-without-receipt" },
+        "root_hash": { "$ref": "#/$defs/hash" },
+        "qarinah_head_hash": { "$ref": "#/$defs/hash" },
+        "telegraph_signal_hashes": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/signalHash" }
+        }
+      }
+    },
+    "qarinahChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "workspace_id", "events", "event_count", "head_hash"],
+      "properties": {
+        "schema_version": { "const": "qarinah.proofgate-chain.v1" },
+        "workspace_id": { "type": "string", "pattern": "^ws_[0-9a-f]{32}$" },
+        "events": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/qarinahEvent" }
+        },
+        "event_count": { "type": "integer", "minimum": 2, "maximum": 8 },
+        "head_hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "qarinahEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "eventId", "timestamp", "workspaceId", "sessionId", "turnId", "kind", "actor", "title", "body", "data", "confidence", "relations", "provenance", "retention", "previousHash", "hash"],
+      "properties": {
+        "schemaVersion": { "const": "qarinah.event.v1" },
+        "eventId": { "type": "string", "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+        "timestamp": { "$ref": "#/$defs/timestamp" },
+        "workspaceId": { "type": "string", "pattern": "^ws_[0-9a-f]{32}$" },
+        "sessionId": { "type": ["string", "null"], "maxLength": 256 },
+        "turnId": { "type": ["string", "null"], "maxLength": 256 },
+        "kind": { "enum": ["session.started", "prompt.submitted", "tool.requested", "tool.completed", "turn.completed", "compaction.started", "compaction.completed", "artifact", "source", "claim", "decision", "approval", "summary", "memory.scope.attached", "memory.scope.revoked", "context.pack.compiled"] },
+        "actor": { "$ref": "#/$defs/qarinahActor" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "body": { "type": "string", "maxLength": 65536 },
+        "data": { "type": "object", "maxProperties": 128 },
+        "confidence": { "enum": ["extracted", "inferred", "claimed", "verified"] },
+        "authority": { "$ref": "#/$defs/qarinahAuthority" },
+        "temporal": { "$ref": "#/$defs/qarinahTemporal" },
+        "repository": { "$ref": "#/$defs/qarinahRepository" },
+        "freshness": { "$ref": "#/$defs/qarinahFreshness" },
+        "disclosure": { "$ref": "#/$defs/qarinahDisclosure" },
+        "relations": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/qarinahRelation" }
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapter", "sourceId", "contentHash"],
+          "properties": {
+            "adapter": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "sourceId": { "type": ["string", "null"], "maxLength": 512 },
+            "contentHash": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "expiresAt"],
+          "properties": {
+            "class": { "enum": ["session", "project", "durable"] },
+            "expiresAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+          }
+        },
+        "previousHash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "qarinahActor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["human", "agent", "tool", "system", "source"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "qarinahRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target"],
+      "properties": {
+        "type": { "enum": ["derived_from", "produced", "changed", "supports", "contradicts", "supersedes", "authorized_by", "governed_by", "affects", "references"] },
+        "target": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "qarinahAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "rank", "assignedBy", "assignedAt", "expiresAt", "revokedAt", "basis"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "rank": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "assignedBy": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "assignedAt": { "$ref": "#/$defs/timestamp" },
+        "expiresAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "revokedAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "basis": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "qarinahTemporal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validFrom", "validUntil"],
+      "properties": {
+        "validFrom": { "$ref": "#/$defs/timestamp" },
+        "validUntil": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "qarinahRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "branch", "commit"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "branch": { "type": ["string", "null"], "maxLength": 512 },
+        "commit": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "qarinahFreshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "dependencies"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "hash"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+              "hash": { "$ref": "#/$defs/hash" }
+            }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version", "hash"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "version": { "type": ["string", "null"], "maxLength": 256 },
+              "hash": { "$ref": "#/$defs/hash" }
+            }
+          }
+        }
+      }
+    },
+    "qarinahDisclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scopes", "classification"],
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "classification": { "enum": ["public", "workspace", "restricted"] }
+      }
+    }
+  }
+}
