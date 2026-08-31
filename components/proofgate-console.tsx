@@ -159,7 +159,7 @@ export function ProofGateConsole() {
             {loading ? <HourglassMedium className="spin" size={20} aria-hidden="true" /> : <Play size={19} weight="fill" aria-hidden="true" />}
             {loading ? "Running live preflight" : "Verify with Telegraph"}
           </button>
-          <p>Up to 3 paid testnet calls. Price is read from each x402 challenge.</p>
+          <p>Up to 3 paid testnet calls; prices come from x402. Missing compatible mappings always escalates.</p>
         </div>
       </form>
 
@@ -187,7 +187,7 @@ export function ProofGateConsole() {
                 transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
               />
             </div>
-            <p>Waiting for live routing, paid Miner responses, receipt verification, Qarinah sealing, and Maqam policy evaluation.</p>
+            <p>Waiting for live routing, paid Miner responses, receipt verification, ProofGate policy checks, Qarinah sealing, and the final Maqam authorization boundary.</p>
           </div>
         )}
 
@@ -229,7 +229,7 @@ export function ProofGateConsole() {
                 <div><span>Testnet cost</span><strong>{money(result.aggregate.total_cost_usd)}</strong></div>
               </div>
 
-              <div className="pg-rule-list" aria-label="Maqam policy results">
+              <div className="pg-rule-list" aria-label="ProofGate policy results">
                 {result.rules.map((rule) => (
                   <div key={rule.id} className={rule.passed ? "passed" : "failed"}>
                     {rule.passed ? <CheckCircle size={18} weight="fill" aria-hidden="true" /> : <XCircle size={18} weight="fill" aria-hidden="true" />}

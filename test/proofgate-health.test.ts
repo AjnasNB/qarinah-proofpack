@@ -11,8 +11,8 @@ describe("GET /health ProofGate configuration", () => {
     vi.stubEnv("TELEGRAPH_EVM_PRIVATE_KEY", "not-a-private-key");
     const response = await GET();
     expect((await response.json()).surfaces.preflight).toMatchObject({
-      telegraph_configured: false,
-      authorization_mode: "escalate-only",
+      payer_configured: false,
+      runtime_mode: "escalate-only",
     });
   });
 
@@ -21,8 +21,19 @@ describe("GET /health ProofGate configuration", () => {
     vi.stubEnv("TELEGRAPH_MAX_PAYMENT_USDC_MICROS", "0");
     const response = await GET();
     expect((await response.json()).surfaces.preflight).toMatchObject({
-      telegraph_configured: false,
-      authorization_mode: "escalate-only",
+      payer_configured: false,
+      runtime_mode: "escalate-only",
+    });
+  });
+
+  it("describes a valid payer as configured without claiming a paid call succeeded", async () => {
+    vi.stubEnv("TELEGRAPH_EVM_PRIVATE_KEY", `0x${"1".repeat(64)}`);
+    vi.stubEnv("TELEGRAPH_MAX_PAYMENT_USDC_MICROS", "50000");
+    const response = await GET();
+    expect((await response.json()).surfaces.preflight).toMatchObject({
+      payer_configured: true,
+      runtime_mode: "x402-configured",
+      note: expect.stringContaining("successful paid Telegraph preflight"),
     });
   });
 });

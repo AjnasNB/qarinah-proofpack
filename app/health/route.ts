@@ -4,7 +4,7 @@ import { createTelegraphClient } from "@/lib/proofgate/telegraph";
 
 export const dynamic = "force-dynamic";
 
-function telegraphConfigurationReady(): boolean {
+function telegraphPayerConfigured(): boolean {
   try {
     return createTelegraphClient().configured;
   } catch {
@@ -13,7 +13,7 @@ function telegraphConfigurationReady(): boolean {
 }
 
 export function GET() {
-  const telegraphConfigured = telegraphConfigurationReady();
+  const payerConfigured = telegraphPayerConfigured();
   return NextResponse.json(
     {
       ok: true,
@@ -22,8 +22,11 @@ export function GET() {
       surfaces: {
         preflight: {
           path: "/api/preflight",
-          telegraph_configured: telegraphConfigured,
-          authorization_mode: telegraphConfigured ? "live-x402" : "escalate-only",
+          payer_configured: payerConfigured,
+          runtime_mode: payerConfigured ? "x402-configured" : "escalate-only",
+          note: payerConfigured
+            ? "Configuration is valid; readiness still requires a successful paid Telegraph preflight."
+            : "No valid server-side Telegraph payer is configured.",
         },
         proofpack: {
           path: "/v1/proof",

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://qarinah.io/schemas/proofgate.preflight.v1.schema.json",
   "title": "ProofGate preflight v1",
-  "description": "A fail-closed pre-action authorization receipt backed by verified Telegraph signals, Qarinah provenance, and a Maqam authorization boundary.",
+  "description": "A fail-closed pre-action authorization receipt that records verified Telegraph signals when available, Qarinah provenance, and a Maqam authorization boundary.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -23,7 +23,7 @@ const trustLayers = [
   {
     icon: Scales,
     name: "Maqam",
-    role: "Applies the action policy and fails closed",
+    role: "Enforces the final authorization boundary before ALLOW",
   },
 ];
 
@@ -68,7 +68,7 @@ export default function Home() {
       <section className="pg-stack" id="how-it-works">
         <div className="pg-section-heading">
           <h2>Trust is a sequence.</h2>
-          <p>Every authorization keeps the live Miner receipts that produced it.</p>
+          <p>Every authorization keeps the live Miner receipts and policy checks that produced it.</p>
         </div>
         <div className="pg-layer-grid">
           {trustLayers.map(({ icon: Icon, name, role }, index) => (

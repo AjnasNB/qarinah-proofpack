@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.PROOFPACK_PUBLIC_URL || "http://localhost:3000"),
   title: "ProofGate | No proof. No action.",
-  description: "A pre-action trust firewall that uses real Telegraph Miner signals, Qarinah evidence lineage, and Maqam policy to authorize, block, or escalate agent actions.",
+  description: "A pre-action trust firewall that evaluates real Telegraph Miner signals, preserves Qarinah evidence lineage, and uses Maqam as the final authorization boundary.",
   openGraph: {
     title: "ProofGate",
     description: "Make autonomous agents earn permission to act.",
