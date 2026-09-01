@@ -12,7 +12,7 @@ describe("GET /health ProofGate configuration", () => {
     const response = await GET();
     expect((await response.json()).surfaces.preflight).toMatchObject({
       payer_configured: false,
-      runtime_mode: "escalate-only",
+      runtime_mode: "safety-mode",
     });
   });
 
@@ -22,17 +22,34 @@ describe("GET /health ProofGate configuration", () => {
     const response = await GET();
     expect((await response.json()).surfaces.preflight).toMatchObject({
       payer_configured: false,
-      runtime_mode: "escalate-only",
+      runtime_mode: "safety-mode",
     });
   });
 
-  it("describes a valid payer as configured without claiming a paid call succeeded", async () => {
+  it("locks a valid payer until the durable spend guard is configured", async () => {
     vi.stubEnv("TELEGRAPH_EVM_PRIVATE_KEY", `0x${"1".repeat(64)}`);
     vi.stubEnv("TELEGRAPH_MAX_PAYMENT_USDC_MICROS", "50000");
     const response = await GET();
     expect((await response.json()).surfaces.preflight).toMatchObject({
       payer_configured: true,
-      runtime_mode: "x402-configured",
+      spend_guard_configured: false,
+      runtime_mode: "payer-locked",
+      note: expect.stringContaining("payer is locked"),
+    });
+  });
+
+  it("reports x402-ready only when payer, durable store, and tester keys are valid", async () => {
+    vi.stubEnv("TELEGRAPH_EVM_PRIVATE_KEY", `0x${"1".repeat(64)}`);
+    vi.stubEnv("TELEGRAPH_MAX_PAYMENT_USDC_MICROS", "50000");
+    vi.stubEnv("PROOFGATE_REDIS_REST_URL", "https://example.upstash.io");
+    vi.stubEnv("PROOFGATE_REDIS_REST_TOKEN", "token-with-at-least-sixteen-characters");
+    vi.stubEnv("PROOFGATE_ACCESS_KEY_HASHES", `sha256:${"a".repeat(64)}`);
+    const response = await GET();
+    expect((await response.json()).surfaces.preflight).toMatchObject({
+      payer_configured: true,
+      spend_guard_configured: true,
+      access_required: true,
+      runtime_mode: "x402-ready",
       note: expect.stringContaining("successful paid Telegraph preflight"),
     });
   });
