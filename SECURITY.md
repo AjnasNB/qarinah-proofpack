@@ -18,9 +18,18 @@ High-priority reports include:
 - evidence-hash, manifest-hash, or Qarinah chain verification bypasses;
 - cross-reference or closed-schema verification bypasses;
 - leakage of environment secrets or optional sidecar credentials;
+- bypasses of paid-route tester authentication, atomic idempotency, daily spend reservations, or concurrency limits;
+- malformed or mismatched x402 settlement receipts accepted as successful payments;
+- replayed Telegraph signals accepted despite the per-run audit nonce or freshness window;
 - denial of service that bypasses request and acquisition bounds.
 
 Source truthfulness is not a cryptographic security property of ProofPack. A report that demonstrates systematic source-quality manipulation or policy bypass is in scope; a source merely publishing an incorrect statement is not.
+
+ProofGate's embedded SHA-256 receipt is an unsigned internal-consistency seal,
+not an issuer-authentication signature or transferable bearer authorization.
+`signal_verified: true` means the official Telegraph node lookup attested and
+bound the exact query, Miner, Intent, and result; the receipt explicitly records
+that the Telegraph hash was not independently recomputed locally.
 
 ## Supported version
 

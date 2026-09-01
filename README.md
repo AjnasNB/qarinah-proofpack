@@ -13,6 +13,7 @@
 [**ProofPack verifier**](https://qarinah-proofpack.vercel.app/verify) ·
 [**API health**](https://qarinah-proofpack.vercel.app/health) ·
 [**Track 3 runbook**](docs/PROOFGATE-TRACK3.md) ·
+[**Adoption evidence**](docs/ADOPTION-EVIDENCE.md) ·
 [**Miner runbook**](docs/TELEGRAPH-SUBMISSION.md)
 
 ## What we are building
@@ -23,8 +24,8 @@ workflow, approves a transaction, or performs another consequential action,
 ProofGate makes the agent earn permission with verifiable intelligence.
 
 The agent supplies the proposed action and a plain-English evidence policy.
-ProofGate asks real Telegraph Miners for intelligence, verifies the returned
-signals, evaluates independent agreement and conflict, preserves the decision
+ProofGate asks real Telegraph Miners for intelligence, binds each returned
+result to Telegraph's official signal-lookup attestation, evaluates independent agreement and conflict, preserves the decision
 provenance with Qarinah, and sends the exact action through Maqam's final
 authorization boundary.
 
@@ -32,12 +33,12 @@ The result is deliberately small and machine-actionable:
 
 | Decision | Meaning |
 |---|---|
-| `ALLOW` | Verified evidence satisfies every declared policy rule, so the exact action may proceed |
-| `BLOCK` | Credible verified evidence refutes the action, or the policy explicitly forbids the detected conflict |
+| `ALLOW` | Telegraph-attested evidence satisfies every declared policy rule, so the exact action may proceed |
+| `BLOCK` | Credible Telegraph-attested evidence refutes the action, or the policy explicitly forbids the detected conflict |
 | `ESCALATE` | Evidence, confidence, Miner diversity, policy coverage, payment, or verification is insufficient; require human review |
 
 In one sentence: **Telegraph decides which intelligence providers deserve the
-request; ProofGate decides whether their verified evidence is strong enough for
+request; ProofGate decides whether their attested evidence is strong enough for
 an agent to act.**
 
 ## Two connected Telegraph submissions
@@ -59,8 +60,8 @@ Product Y this month."
 1. The agent sends that action and its evidence policy to `POST /api/preflight`.
 2. Telegraph routes a paid request to a real ranked Miner.
 3. ProofGate obtains distinct second opinions when the policy requires them.
-4. Every counted response must resolve to a verifiable Telegraph `signal_hash`.
-5. Qarinah seals Miner identity, result hashes, payment-receipt hashes, policy
+4. Every counted response must include a successful x402 settlement and resolve to a Telegraph `signal_hash` whose official lookup binds the exact query, Miner, Intent, and result.
+5. Qarinah records Miner identity, result hashes, redacted payment settlement, policy
    evaluation, and event relationships into a downloadable receipt.
 6. Maqam checks the final action boundary.
 7. ProofGate returns `ALLOW`, `BLOCK`, or `ESCALATE`. Weak or conflicting
@@ -81,7 +82,7 @@ of using it as a decorative data source:
 - it uses Telegraph's auto-routing path before requesting justified independent
   corroboration;
 - it consumes real, x402-paid Miner responses rather than fixtures;
-- it verifies and retains the returned `signal_hash` commitments;
+- it retains each `signal_hash` and validates the official node attestation against the exact request and result;
 - it applies declared confidence thresholds, Miner diversity, conflict, and
   policy rules before authorizing an action;
 - it demonstrates useful safe behavior when the correct answer is to refuse or
@@ -101,17 +102,20 @@ and the complete [Track 3 runbook](docs/PROOFGATE-TRACK3.md).
 > Qarinah ProofPack is an active supporting Track 1 Miner and is available at `/proofpack`. Telegraph's live catalog resolves YAML Miner ID `717190`, slug `qarinah-proofpack`, and on-chain registration `398`; the Track 1 portal separately reports the entry as verified. This repository never describes a direct `/v1/proof` call as Track 3 usage; qualifying usage goes through Telegraph Engine and preserves a real `signal_hash`.
 
 > [!WARNING]
-> The deployed ProofGate payer is not configured yet, so a funded end-to-end Track 3 run has not been evidenced. Until a dedicated, minimally funded Base Sepolia burner returns retained verified receipts, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
+> The deployed ProofGate payer is not configured yet, so a funded end-to-end Track 3 run has not been evidenced. The UI therefore labels itself **Safety mode**, not live x402. Until a dedicated, minimally funded Base Sepolia burner returns retained Telegraph-attested receipts through the durable spend guard, `ESCALATE` is the only evidenced production outcome; `ALLOW` and `BLOCK` remain tested contract behavior, not live-demo claims.
 
 ## ProofGate preflight contract
 
 ```http
 POST /api/preflight
 Content-Type: application/json
+X-Request-Id: pg-demo-jwst-001
+X-ProofGate-Key: <approved tester key; required only in guarded paid mode>
 
 {
   "action": "Publish the claim: The James Webb Space Telescope launched in 2021.",
-  "policy": "Allow only when mapped provider confidence is at least 80%, at least two independent Miners support the claim, and there is no material conflict. Otherwise escalate to human review."
+  "policy": "Allow only when mapped provider confidence is at least 80%, at least two independent Miners support the claim, and there is no material conflict. Otherwise escalate to human review.",
+  "request_id": "pg-demo-jwst-001"
 }
 ```
 
@@ -120,14 +124,14 @@ The response conforms to [`proofgate.preflight.v1`](schemas/proofgate.preflight.
 | Field | Meaning |
 |---|---|
 | `decision` | `ALLOW`, `BLOCK`, or `ESCALATE` |
-| `authorization_issued` | `true` only when every hard rule passes with verified real Telegraph receipts |
+| `authorization_issued` | `true` only when every hard rule passes with real, settled, Telegraph-node-attested receipts |
 | `claims[]` | Extracted claim assessments and signal links |
 | `compiled_policy` | Parsed thresholds, recognized constraints, unsupported clauses, and policy hash |
-| `aggregate` | Mean catalog-mapped confidence from distinct Miners aligned with the dominant stance, unique Miner count, verified signals, conflicts, and paid cost |
+| `aggregate` | Mean catalog-mapped confidence from distinct Miners aligned with the dominant stance, unique Miner count, node-attested signals, conflicts, and settled paid cost |
 | `rules[]` | Rule-by-rule ProofGate evidence-policy evaluation, including the final Maqam boundary |
-| `signals[]` | Miner ID, route mode, intent, route rank, provider confidence if present, `signal_hash`, and result hash |
+| `signals[]` | Miner ID, route mode, Intent, rank, mapped confidence, official-node attestation scope, `signal_hash`, result hash, and redacted x402 settlement |
 | `qarinah` | Hash-linked preflight event chain |
-| `receipt` | Canonical SHA-256 receipt root and signal commitments |
+| `receipt` | Canonical SHA-256 internal-consistency root and signal references; explicitly unsigned and not a transferable authorization token |
 
 Telegraph does not expose one universal network confidence or one consensus endpoint. ProofGate uses provider confidence only when the selected Miner's declared signal mapping supplies it, reports the mean from distinct Miners aligned with the dominant stance, and requires enough aligned Miners to meet the confidence-coverage rule. Uncertain or opposing signals can never raise the confidence used to authorize that stance. A coincidental undeclared number has no policy authority. Distinct corroboration counts unique `miner_id` values rather than raw call count.
 
@@ -187,7 +191,7 @@ flowchart TD
     F -->|yes| G[Catalog-discovered direct Miner calls]
     F -->|no| H[Normalize receipts]
     G --> H
-    H --> I[Verify signal hashes]
+    H --> I[Bind official node attestations to exact results]
     I --> J[ProofGate evidence-policy evaluation]
     J -->|credible refutation or forbidden conflict| M[BLOCK]
     J -->|insufficient or operational failure| N[ESCALATE]
@@ -207,7 +211,7 @@ The ProofGate path is fail-closed:
 2. The server reads the active Miner catalog and x402 challenge at request time.
 3. One auto-routed call demonstrates Telegraph's ranking path; at most two justified second-opinion calls may follow.
 4. Duplicate Miner IDs never count as independent corroboration.
-5. A response must have a real `signal_hash`, and an `ALLOW` requires verified receipts.
+5. A response must have a successful validated x402 settlement and a real `signal_hash`; an `ALLOW` requires exact official-node attestation binding. The receipt labels this trust authority and does not claim local Telegraph-hash recomputation.
 6. Qarinah seals the action, policy, signals, evidence decision, and final Maqam boundary result into an isolated in-memory event chain.
 7. Unsupported policy language, incomplete signals, payment errors, and timeouts produce `ESCALATE`.
 
@@ -343,7 +347,7 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-The ProofPack Miner and verifier need no payment wallet. A real ProofGate preflight requires a dedicated server-side testnet wallet funded with a small Base Sepolia USDC budget. Without that secret, `/api/preflight` returns a sealed `ESCALATE` receipt and never substitutes fixtures.
+The ProofPack Miner and verifier need no payment wallet. A real ProofGate preflight requires a dedicated server-side testnet wallet funded with a small Base Sepolia USDC budget, a durable Redis guard, and hashed tester access keys. If the payer exists without either guard, the paid route is locked and spends nothing. Without a payer, `/api/preflight` returns an unsigned, internally consistent `ESCALATE` receipt and never substitutes fixtures.
 
 ### Optional environment variables
 
@@ -352,8 +356,16 @@ The ProofPack Miner and verifier need no payment wallet. A real ProofGate prefli
 | `PROOFPACK_PUBLIC_URL` | Canonical deployed HTTPS origin used by metadata and the Telegraph YAML renderer |
 | `TELEGRAPH_EVM_PRIVATE_KEY` | Server-only burner wallet key used by the official x402 client; never prefix with `NEXT_PUBLIC_` |
 | `TELEGRAPH_NODE_URL` | Optional Telegraph node origin; defaults to `https://devnode.telegraphprotocol.com` |
+| `TELEGRAPH_ALLOW_CUSTOM_NODE` | Explicit production escape hatch for a non-official node origin; production is pinned by default |
 | `TELEGRAPH_MAX_PAYMENT_USDC_MICROS` | Maximum accepted payment per call in 6-decimal USDC units; defaults to `50000`, or $0.05, with an absolute $0.10 safety ceiling |
 | `PROOFGATE_MAX_CALLS` | Optional hard cap from 1 through 3 paid calls per preflight |
+| `PROOFGATE_REDIS_REST_URL` | HTTPS Upstash/Redis REST origin for atomic spend and idempotency control |
+| `PROOFGATE_REDIS_REST_TOKEN` | Server-only Redis REST token; standard Upstash/Vercel variable names are also detected |
+| `PROOFGATE_ACCESS_KEY_HASHES` | Comma-separated `sha256:` hashes of approved tester keys; raw keys are never stored |
+| `PROOFGATE_DAILY_BUDGET_USDC_MICROS` | Conservative global daily reservation ceiling; defaults to `1000000` ($1 test USDC) |
+| `PROOFGATE_PRINCIPAL_MINUTE_LIMIT` | Atomic per-tester limit per minute; defaults to `2` |
+| `PROOFGATE_PRINCIPAL_DAY_LIMIT` | Atomic per-tester limit per UTC day; defaults to `10` |
+| `PROOFGATE_GLOBAL_CONCURRENCY` | Maximum simultaneous paid preflights; defaults to `2` |
 | `OPENAI_API_KEY` | Enables optional bounded answer synthesis through the OpenAI Responses API |
 | `OPENAI_MODEL` | Required with `OPENAI_API_KEY`; chooses the synthesis model |
 | `COCKROACH_BROWSER_ENDPOINT` | Base URL of a separately deployed Cockroach Browser daemon |
@@ -363,9 +375,14 @@ If either browser variable is missing, rendered fallback remains off. If either 
 
 Use a burner wallet only. The current official testnet path uses Base Sepolia chain ID `84532` and USDC contract `0x036CbD53842c5426634e7929541eC2318f3dCF7e`. The x402 challenge, not this README, is authoritative for the price and payment recipient. Never commit the key, print it, expose it to the browser, or fund it with assets beyond the test budget.
 
+Generate one approved tester credential at a time with `npm run proofgate:access-key`.
+Share the raw `pg_test_…` value once and place only the printed `sha256:` value
+in `PROOFGATE_ACCESS_KEY_HASHES`. The generator creates no file and the
+repository contains no credential.
+
 ### Privacy-safe usage evidence
 
-Each completed preflight emits one structured `proofgate.usage.v1` server log with the opaque action ID, decision, call counts, verified and distinct Miner counts, stance counts, paid cost, reason codes, latency, and deployment commit. It deliberately excludes the action, policy, claims, IP address, raw Miner output, payment headers, signal-derived receipt IDs, and wallet material. Export these finite-retention platform logs with the matching public receipts when preparing honest Track 3 adoption evidence.
+Each completed preflight emits one structured `proofgate.usage.v1` server log with a random usage ID, decision, call counts, attested and distinct Miner counts, stance counts, settled paid cost, reason codes, latency, and deployment commit. It deliberately excludes the action, policy, claims, IP address, access key, raw Miner output, payment headers, signal-derived receipt IDs, and wallet material. Export these finite-retention platform logs with the matching permissioned receipts when preparing honest Track 3 adoption evidence. Exact responses are retained in the durable idempotency store for the configured TTL so the same tester and `request_id` can replay without another payment.
 
 ## Verification and tests
 
@@ -392,8 +409,8 @@ The suite covers:
 - canonical JSON and evidence hashing;
 - Qarinah event creation, continuity, and semantic projection;
 - bounded internal-consistency checks and trusted-commitment comparison;
-- request rate limiting;
-- bounded real Telegraph discovery, x402 calls, unique-Miner accounting, and signal verification;
+- process-local abuse throttling plus durable atomic spend, idempotency, per-tester, and concurrency controls;
+- bounded real Telegraph discovery, Intent-aware endpoint selection, validated x402 settlements, unique-Miner accounting, and exact official-node attestation binding;
 - deterministic ProofGate policy compilation and fail-closed authorization;
 - Qarinah preflight receipts and canonical receipt hashing;
 - Telegraph YAML structure, semantics, hashing, and live-registry checks;

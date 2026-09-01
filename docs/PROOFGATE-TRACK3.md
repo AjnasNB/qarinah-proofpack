@@ -1,7 +1,7 @@
 # ProofGate Track 3 runbook
 
 ProofGate is the main Telegraph **Track 3: Applications** submission.
-Qarinah ProofPack is the supporting **Track 1: Miners** candidate.
+Qarinah ProofPack is the active supporting **Track 1: Miners** submission.
 
 > **No proof. No action.**
 
@@ -12,10 +12,10 @@ appear as live demo data, usage, or submission evidence.
 
 ## Track decision
 
-| Project surface | Track | Role | Status on 2026-08-31 |
+| Project surface | Track | Role | Status on 2026-09-01 |
 |---|---|---|---|
 | ProofGate | Track 3: Applications | Main submission | Public UI and fail-closed API deployed; paid x402 path not yet evidenced; not yet submitted |
-| Qarinah ProofPack | Track 1: Miners | Supporting evidence Miner for `FACT_CHECK` and `RESEARCH_SYNTHESIS` | Public API is live, but the Miner is not yet registered in Telegraph |
+| Qarinah ProofPack | Track 1: Miners | Supporting evidence Miner for `FACT_CHECK` and `RESEARCH_SYNTHESIS` | Active as YAML Miner `717190`, registration `398`; Track 1 submission verified |
 | Evaluation WASM | Track 2: Script Authors | Out of scope | No Track 2 submission planned |
 
 ProofGate is the stronger main entry because the official Track 3 criteria
@@ -43,7 +43,7 @@ areas. ProofGate combines all five in one narrow product:
 1. An agent proposes an action.
 2. A human-readable policy defines the evidence needed before that action.
 3. Telegraph discovers and calls live, ranked Miners.
-4. Each returned `signal_hash` is looked up and verified.
+4. Each returned `signal_hash` is looked up at the official node and bound to the exact query, Miner, Intent, and result. This is labeled a Telegraph-node attestation, not independent local hash recomputation.
 5. Qarinah records a hash-linked evidence event chain.
 6. ProofGate evaluates the compiled evidence thresholds and chooses a provisional decision.
 7. Maqam enforces the final tool boundary before any provisional `ALLOW`.
@@ -81,7 +81,7 @@ The Track 3 tab on the official rules page assigns 100 points as follows:
 | Weight | Criterion | ProofGate evidence to produce |
 |---:|---|---|
 | 45% | Real Usage and Adoption | Genuine users, actual volume of paid Telegraph calls, retained anonymized usage records, and integrations by other builders |
-| 25% | Usefulness, Creativity and Depth of Integration | Pre-action control, multi-Miner evidence, verified signal lookups, deterministic policy checks, and sealed Qarinah receipts |
+| 25% | Usefulness, Creativity and Depth of Integration | Pre-action control, multi-Miner evidence, exact node-attestation binding, deterministic policy checks, and Qarinah integrity receipts |
 | 25% | Engagement and Updates on X | Public build and launch updates with working links, honest metrics, and `@Telegraphprotoc` tagged |
 | 5% | Technical Execution and Integration Quality | Reliable live endpoint, bounded payments, tests, failure handling, documentation, and reproducible verification |
 
@@ -92,10 +92,10 @@ spend the week polishing a prerecorded demo while adoption remains zero.
 The separate Miner Track guardrail says an Intent needs at least three active
 Miners and at least 100 real requests from Track 3 applications to qualify for
 global cash prizes. As of the catalog snapshot on **2026-08-31**,
-`FACT_CHECK` has **2** active Miners and `RESEARCH_SYNTHESIS` has **3**. A live
-ProofPack registration could bring `FACT_CHECK` to three, but the 100-request
-requirement would still need genuine Track 3 demand. Never generate artificial
-traffic to meet it.
+the current live catalog has **4** active Miners for `FACT_CHECK` and **4** for
+`RESEARCH_SYNTHESIS`, including ProofPack. Counts and ranks are volatile; refresh
+them before every public claim. The 100-request Miner Track guardrail still
+requires genuine Track 3 demand. Never generate artificial traffic to meet it.
 
 ## Architecture
 
@@ -115,7 +115,7 @@ POST /api/preflight
       |       POST /engine/v1/ask
       |       POST /engine/v1/ask/{minerId}
       |
-      +--> signal verification
+      +--> exact official-node attestation binding
       |       GET /engine/v1/signal/{signal_hash}
       |
       +--> normalized claims, confidence, conflicts, and source Miner identity
@@ -129,7 +129,7 @@ POST /api/preflight
                               +--> ALLOW | ESCALATE
       |
       v
-SHA-256 receipt + Telegraph signal hashes + policy results
+Unsigned SHA-256 integrity receipt + Telegraph signal hashes + policy results
 ```
 
 The application uses the public Telegraph node origin:
@@ -157,7 +157,7 @@ labels.
 ### ALLOW
 
 ProofGate returns `ALLOW` only when every compiled policy rule passes using
-successfully returned and verified Telegraph signals. The response sets:
+successfully settled Telegraph signals whose official lookup binds the exact request and result. The response sets:
 
 ```json
 {
@@ -193,7 +193,7 @@ cannot justify either an allow or an evidence-based block. Examples include:
 - no suitable active Miner is discovered;
 - an x402 payment or request fails;
 - a returned result has no valid `signal_hash`;
-- signal lookup cannot verify the call;
+- signal lookup cannot attest the exact call or the signal is stale/replayed;
 - too few distinct Miners or verified signals respond;
 - too few distinct aligned Miners expose catalog-mapped confidence, or their
   mapped-confidence mean is below the policy threshold;
@@ -511,8 +511,9 @@ ProofGate to Track 3.
 ### 4. Submit ProofGate to Track 3
 
 The official [submission portal](https://submissions.telegraphprotocol.com/)
-currently shows **Track 3: Coming Soon** and disables the Track 3 tab. This is
-the current portal state on 2026-08-31, not a completed submission.
+currently shows **Track 3: Coming Soon** and disables the Track 3 tab. This was
+re-verified on 2026-09-01 even though the published Track 3 schedule has begun;
+it is an external blocker, not a completed submission.
 
 Until the tab opens:
 
@@ -540,7 +541,7 @@ Require lint, type checking, unit tests, and the production build to pass.
 
 1. Start the app without `TELEGRAPH_EVM_PRIVATE_KEY`.
 2. Call `GET /health` and require:
-   `payer_configured: false` and `runtime_mode: "escalate-only"`.
+   `payer_configured: false` and `runtime_mode: "safety-mode"`.
 3. Send a valid `POST /api/preflight` request.
 4. Require HTTP 200 with `decision: "ESCALATE"`,
    `authorization_issued: false`, zero successful paid calls, and a sealed
@@ -564,21 +565,29 @@ forward as if it were current.
 ### Funded local x402 check
 
 1. Put a dedicated, minimally funded key in `.env.local`.
-2. Set `PROOFGATE_MAX_CALLS=3` and a conservative payment cap. One call uses
+2. Configure a durable Redis REST store, hashed tester access keys, the global
+   daily reservation ceiling, and concurrency/per-tester limits. A payer without
+   these controls must report `payer-locked` and spend nothing.
+3. Set `PROOFGATE_MAX_CALLS=3` and a conservative payment cap. One call uses
    Telegraph auto-routing; up to two distinct, capability-matched direct calls
    provide the confidence-mapped corroboration required by the default policy.
-3. Restart the server so secrets are loaded.
-4. Send one preflight through the local application.
-5. Require at least one real paid call to succeed.
-6. Require every counted signal to include a valid `signal_hash` and
-   `signal_verified: true`.
-7. Look up each hash independently at
+4. Restart the server so secrets are loaded.
+5. Send one preflight with a unique `request_id` and approved tester key.
+6. Require at least one real paid call to succeed with a decoded successful
+   Base Sepolia settlement whose payer and amount match the guarded client.
+7. Require every counted signal to include a valid `signal_hash`,
+   `signal_verified: true`, and `signal_verification.status: node_attested`.
+8. Look up each hash separately at
    `GET /engine/v1/signal/{signal_hash}`.
-8. Compare returned Miner IDs with the live catalog.
-9. Confirm the aggregate distinct Miner count does not double-count one Miner.
-10. Confirm the receipt root changes if any covered field is modified.
-11. Confirm the private key and raw payment authorization never appear in logs,
-    JSON, HTML, or browser network responses.
+9. Compare returned Miner IDs with the live catalog and confirm multi-endpoint
+   Miners were called through the operation matching the requested Intent.
+10. Retry the same `request_id` and body; require an idempotent replay with no
+    new settlement. Reuse it with a different body; require HTTP 409.
+11. Confirm the aggregate distinct Miner count does not double-count one Miner.
+12. Confirm the receipt root changes if any covered field is modified, while
+    documenting that the receipt is unsigned and proves consistency, not issuer authenticity.
+13. Confirm the private key and raw payment authorization never appear in logs,
+   JSON, HTML, or browser network responses.
 
 ### Negative-path checks
 
@@ -596,6 +605,9 @@ Test all of these before production:
 - conflicting live results;
 - low or missing confidence;
 - repeated requests beyond the rate limit; and
+- payer configured without the durable spend guard;
+- missing tester key or `request_id`;
+- idempotency replay, conflict, pending state, daily budget, and concurrency rejection; and
 - a tampered receipt.
 
 Every operational negative path must withhold authorization. None may fall
@@ -607,11 +619,13 @@ back to a sample answer.
 2. Configure server-only secrets in the hosting dashboard.
 3. Redeploy after adding or rotating a secret.
 4. Confirm `GET https://qarinah-proofpack.vercel.app/health` reports
-   `x402-configured` for ProofGate and ready state for ProofPack and the
+   `x402-ready`, `spend_guard_configured: true`, and ready state for ProofPack and the
    verifier. This proves configuration only, not payment or live-signal success.
 5. Run a real preflight from an external client, not only from the hosting
    provider's internal network.
-6. Verify every returned Telegraph signal by hash.
+6. Inspect every returned Telegraph signal at the official lookup route and
+   every decoded settlement on BaseScan. Do not describe node attestation as
+   independent local Telegraph-hash recomputation.
 7. Confirm `Cache-Control: no-store` on preflight responses.
 8. Confirm rate-limit headers and bounded paid call count.
 9. Confirm mobile and desktop users can read the decision, rules, signals, and
@@ -759,19 +773,19 @@ calls only to inflate totals. The rules explicitly disqualify metric gaming.
 This table distinguishes completed external actions from the remaining Track 3
 activation work.
 
-| Item | Current state on 2026-08-31 | Exit condition |
+| Item | Current state on 2026-09-01 | Exit condition |
 |---|---|---|
 | Standalone public repository | Live at `AjnasNB/qarinah-proofpack` | Keep public and clean |
 | ProofPack production API | Live; a real production acquisition returned a sealed pack on 2026-08-31 | Keep the endpoint healthy and archive release evidence |
-| ProofGate application | Public UI and fail-closed `/api/preflight` deployed | Add and evidence the funded x402 path |
-| Telegraph live x402 configuration | Not yet proven in production | Add funded burner secret and retain a verified paid receipt |
+| ProofGate application | Public UI and fail-closed `/api/preflight` deployed; runtime state is explicit | Deploy the durable guard release, then add and evidence the funded x402 path |
+| Telegraph live x402 configuration | Not yet proven in production; payer intentionally absent | Provision atomic Redis guard + tester identities, then minimally fund a dedicated burner and retain a settled, node-attested receipt |
 | ProofPack Miner registration | Active: YAML Miner ID `717190`, registration `398`, CID `QmU9abRW2h7YW8quPDCoupTuoQ52ARmbNx7Xp6fHDFMAJx` | Keep active and healthy through Track 3 |
 | Track 1 Miner submission | Verified in the official submission portal for registration `398` on 2026-08-31 | Keep the exact registered YAML and owner wallet available |
 | Participant registration | Completed in the official participant portal; private confirmation retained | Keep participant details current |
 | Required Discord membership | Not evidenced in this repository | Join and monitor official Hackathon Discord |
 | X update campaign | Not evidenced in this repository | Publish genuine tagged updates |
 | Track 3 submission | Portal currently says Coming Soon | Submit when enabled and verify before deadline |
-| Live Miner counts | `FACT_CHECK`: 3; `RESEARCH_SYNTHESIS`: 4 after ProofPack activation | Refresh from catalog before every release claim |
+| Live Miner counts | `FACT_CHECK`: 4; `RESEARCH_SYNTHESIS`: 4 on the 2026-09-01 audit | Refresh from catalog before every release claim |
 
 Discord membership, X updates, funded x402 execution, and Track 3 submission
 remain explicitly unclaimed until each external action is evidenced.
@@ -790,10 +804,12 @@ remain explicitly unclaimed until each external action is evidenced.
 
 ProofGate is a pre-action trust firewall for autonomous agents. It turns a
 proposed action and a plain-English evidence policy into real Telegraph Miner
-requests, verifies the returned signal hashes, records a Qarinah provenance
+requests, validates x402 settlement and binds returned signal hashes to the
+official node's exact-result attestation, records a Qarinah provenance
 chain, evaluates deterministic evidence thresholds, asks Maqam to enforce the
 final boundary before any `ALLOW`, and returns an auditable `ALLOW`, `BLOCK`,
-or `ESCALATE` receipt. It never invents confidence and never authorizes an
+or `ESCALATE` receipt. The local SHA-256 receipt is explicitly unsigned and
+proves internal consistency rather than issuer authenticity. ProofGate never invents confidence and never authorizes an
 action when evidence or infrastructure is insufficient.
 
 ### Open-source provenance
