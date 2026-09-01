@@ -32,6 +32,24 @@ function shortHash(value: string) {
   return `${value.slice(0, 15)}…${value.slice(-8)}`;
 }
 
+function representativeEvidence(evidence: ProofPack["evidence"], maximum: number) {
+  const selected: ProofPack["evidence"] = [];
+  const ids = new Set<string>();
+  const domains = new Set<string>();
+  const urls = new Set<string>();
+  const add = (item: ProofPack["evidence"][number]) => {
+    if (ids.has(item.id) || selected.length >= maximum) return;
+    selected.push(item);
+    ids.add(item.id);
+    domains.add(item.source_domain);
+    urls.add(item.canonical_url);
+  };
+  for (const item of evidence) if (!domains.has(item.source_domain)) add(item);
+  for (const item of evidence) if (!urls.has(item.canonical_url)) add(item);
+  for (const item of evidence) add(item);
+  return selected;
+}
+
 export function ProofConsole() {
   const router = useRouter();
   const [query, setQuery] = useState(examples[0].query);
@@ -43,6 +61,9 @@ export function ProofConsole() {
   const [showAllEvidence, setShowAllEvidence] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const reduceMotion = useReducedMotion();
+  const visibleEvidence = pack && !showAllEvidence
+    ? representativeEvidence(pack.evidence, 4)
+    : pack?.evidence ?? [];
 
   useEffect(() => {
     if (!loading) return;
@@ -200,9 +221,9 @@ export function ProofConsole() {
               <p className="result-reason">{pack.reason}</p>
 
               <details className="evidence-details" open>
-                <summary>Evidence records <span>{showAllEvidence ? `Showing all ${pack.evidence.length}` : `Showing ${Math.min(4, pack.evidence.length)} of ${pack.evidence.length}`}</span></summary>
+                <summary>Evidence records <span>{showAllEvidence ? `Showing all ${pack.evidence.length}` : `Showing ${visibleEvidence.length} representative of ${pack.evidence.length}`}</span></summary>
                 <div className="evidence-records">
-                  {(showAllEvidence ? pack.evidence : pack.evidence.slice(0, 4)).map((item) => (
+                  {visibleEvidence.map((item) => (
                     <article key={item.id}>
                       <div><code>{item.id}</code><span className={`stance stance-${item.stance.toLowerCase()}`}>{item.stance}</span></div>
                       <a href={item.url} target="_blank" rel="noreferrer">

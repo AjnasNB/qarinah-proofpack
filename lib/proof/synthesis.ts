@@ -28,7 +28,12 @@ function compactQuery(query: string): string {
 }
 
 function compactExcerpt(excerpt: string, maximum = 320): string {
-  const normalized = excerpt.replace(/\s+/g, " ").trim();
+  const normalized = excerpt
+    .replace(/([.!?])(?=[\p{Lu}\p{N}])/gu, "$1 ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstSentence = normalized.match(/^.{40,}?[.!?](?=\s|$)/u)?.[0];
+  if (firstSentence && firstSentence.length <= maximum) return firstSentence;
   if (normalized.length <= maximum) return normalized;
   const sliced = normalized.slice(0, maximum);
   const boundary = sliced.lastIndexOf(" ");
