@@ -146,6 +146,7 @@ function verifiedLookup(
   resultHash: string,
   expectedQuery: string,
   expectedIntent: TelegraphIntent | null,
+  checkedAt: string,
 ): boolean {
   if (!ask.signal_hash || lookup.signal_hash?.toLowerCase() !== ask.signal_hash.toLowerCase()) return false;
   if (lookup.verification?.verified !== true
@@ -156,6 +157,13 @@ function verifiedLookup(
   if (String(signal.subnet_id) !== ask.miner_id) return false;
   if (typeof signal.miner_slug !== "string" || signal.miner_slug !== (miner?.slug ?? ask.miner_name)) return false;
   if (expectedIntent === null || signal.intent_id !== expectedIntent) return false;
+
+  const checkedAtMs = Date.parse(checkedAt);
+  const askTimestampMs = typeof ask.timestamp === "string" ? Date.parse(ask.timestamp) : Number.NaN;
+  if (!Number.isFinite(checkedAtMs)
+    || !Number.isFinite(askTimestampMs)
+    || askTimestampMs < checkedAtMs - 60_000
+    || askTimestampMs > checkedAtMs + 120_000) return false;
 
   const payload = asRecord(lookup.payload);
   if (payload === null
@@ -190,7 +198,7 @@ export interface NormalizeReceiptInput {
 export function normalizeSignalReceipt(input: NormalizeReceiptInput): TelegraphSignalReceipt | null {
   const { ask, lookup, miner, routeMode, requestedIntent, claims, expectedQuery, checkedAt } = input;
   if (!ask.signal_hash || !SIGNAL_HASH_PATTERN.test(ask.signal_hash)) return null;
-  const signalHash = ask.signal_hash as `0x${string}`;
+  const signalHash = ask.signal_hash.toLowerCase() as `0x${string}`;
   const resultHash = hashCanonical(ask.result);
   const mapping = miner?.signal_mapping ?? null;
   const label = boundedText(readPath(ask.result, mapping?.label_field));
@@ -206,7 +214,8 @@ export function normalizeSignalReceipt(input: NormalizeReceiptInput): TelegraphS
   const stances = new Set(claimAssessments.map((assessment) => assessment.stance));
   const stance: SignalStance = stances.size === 1 ? [...stances][0] : "UNCERTAIN";
   const intent = canonicalIntent(ask.intent, requestedIntent);
-  const verified = verifiedLookup(lookup, ask, miner, resultHash, expectedQuery, intent);
+  const verified = ask.payment_settlement !== undefined
+    && verifiedLookup(lookup, ask, miner, resultHash, expectedQuery, intent, checkedAt);
   const timestamp = normalizedTimestamp(ask.timestamp)
     ?? normalizedTimestamp(asRecord(asRecord(lookup.result)?.execution)?.timestamp);
   const warningTexts = (ask.warnings ?? [])
@@ -224,16 +233,23 @@ export function normalizeSignalReceipt(input: NormalizeReceiptInput): TelegraphS
     miner_name: miner?.name ?? ask.miner_name,
     rank_at_request: rankAtRequest(miner, intent ?? requestedIntent),
     endpoint: ask.endpoint ?? "",
-    cost_usd: typeof ask.cost_usd === "number" && Number.isFinite(ask.cost_usd) && ask.cost_usd >= 0 ? ask.cost_usd : null,
+    cost_usd: ask.payment_settlement?.amount_micros === null || ask.payment_settlement === undefined
+      ? null
+      : ask.payment_settlement.amount_micros / 1_000_000,
     timestamp,
     signal_hash: signalHash,
     signal_verified: verified,
     signal_verification: {
+      status: verified ? "node_attested" : "rejected",
+      authority: "telegraph-node",
+      scope: "exact-query-miner-intent-result",
+      locally_recomputed: false,
       algorithm: lookup.verification?.algorithm ?? null,
       commitment: lookup.verification?.commitment ?? null,
       checked_at: checkedAt,
     },
     payment_response_hash: ask.payment_response ? hashText(ask.payment_response) : null,
+    payment_settlement: ask.payment_settlement ?? null,
     result_hash: resultHash,
     signal_mapping: {
       confidence_field: mapping?.confidence_field ?? null,

@@ -117,6 +117,12 @@ class FakeTelegraphClient implements TelegraphClient {
       ...(index === 0 ? { intent } : {}),
       signal_hash: signalHash,
       payment_response: `settlement-${index}`,
+      payment_settlement: {
+        network: "eip155:84532",
+        transaction: `0x${String(index + 1).padStart(64, "a")}`,
+        payer_hash: `sha256:${"b".repeat(64)}`,
+        amount_micros: 10_000,
+      },
     };
   }
 }
@@ -182,13 +188,17 @@ describe("ProofGate preflight pipeline", () => {
     expect(response.reason_codes).toContain("CREDIBLE_REFUTATION");
   });
 
-  it("ESCALATEs unsupported policy language before considering a BLOCK", async () => {
+  it("ESCALATEs unsupported policy language before discovery or payment", async () => {
+    const client = new FakeTelegraphClient(["REFUTED", "REFUTED", "REFUTED"]);
     const response = await run(
-      new FakeTelegraphClient(["REFUTED", "REFUTED", "REFUTED"]),
+      client,
       `${POLICY} Sources must be personally approved by Ada.`,
     );
-    expect(response.claims[0].verdict).toBe("REFUTED");
+    expect(response.claims[0].verdict).toBe("UNCERTAIN");
     expect(response.decision).toBe("ESCALATE");
+    expect(response.operational.paid_calls_attempted).toBe(0);
+    expect(client.calls).toEqual([]);
+    expect(response.reason_codes).toContain("POLICY_UNSUPPORTED_BEFORE_PAYMENT");
     expect(response.rules.find((rule) => rule.id === "POLICY_FULLY_COMPILED")?.passed).toBe(false);
   });
 

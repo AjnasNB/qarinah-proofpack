@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://qarinah.io/schemas/proofgate.preflight.v1.schema.json",
   "title": "ProofGate preflight v1",
-  "description": "A fail-closed pre-action authorization receipt that records verified Telegraph signals when available, Qarinah provenance, and a Maqam authorization boundary.",
+  "description": "A fail-closed pre-action decision receipt that records settled Telegraph signals with explicit node-attestation scope, Qarinah provenance, and a Maqam authorization boundary. Its local SHA-256 seal is unsigned internal-consistency metadata.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -172,7 +172,7 @@
     "signal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["receipt_id", "route_mode", "requested_intent", "intent", "miner_id", "miner_slug", "miner_name", "rank_at_request", "endpoint", "cost_usd", "timestamp", "signal_hash", "signal_verified", "signal_verification", "payment_response_hash", "result_hash", "signal_mapping", "confidence", "label", "reason", "stance", "claim_assessments", "warnings"],
+      "required": ["receipt_id", "route_mode", "requested_intent", "intent", "miner_id", "miner_slug", "miner_name", "rank_at_request", "endpoint", "cost_usd", "timestamp", "signal_hash", "signal_verified", "signal_verification", "payment_response_hash", "payment_settlement", "result_hash", "signal_mapping", "confidence", "label", "reason", "stance", "claim_assessments", "warnings"],
       "properties": {
         "receipt_id": { "type": "string", "pattern": "^TG-[0-9a-f]{16}$" },
         "route_mode": { "enum": ["AUTO", "DIRECT"] },
@@ -196,6 +196,12 @@
         "payment_response_hash": {
           "oneOf": [
             { "$ref": "#/$defs/hash" },
+            { "type": "null" }
+          ]
+        },
+        "payment_settlement": {
+          "oneOf": [
+            { "$ref": "#/$defs/paymentSettlement" },
             { "type": "null" }
           ]
         },
@@ -226,8 +232,12 @@
     "signalVerification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["algorithm", "commitment", "checked_at"],
+      "required": ["status", "authority", "scope", "locally_recomputed", "algorithm", "commitment", "checked_at"],
       "properties": {
+        "status": { "enum": ["node_attested", "rejected"] },
+        "authority": { "const": "telegraph-node" },
+        "scope": { "const": "exact-query-miner-intent-result" },
+        "locally_recomputed": { "const": false },
         "algorithm": { "type": ["string", "null"], "maxLength": 128 },
         "commitment": { "type": ["string", "null"], "maxLength": 128 },
         "checked_at": { "$ref": "#/$defs/timestamp" }
@@ -241,6 +251,17 @@
         "confidence_field": { "type": ["string", "null"], "maxLength": 512 },
         "label_field": { "type": ["string", "null"], "maxLength": 512 },
         "reason_field": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "paymentSettlement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["network", "transaction", "payer_hash", "amount_micros"],
+      "properties": {
+        "network": { "const": "eip155:84532" },
+        "transaction": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
+        "payer_hash": { "$ref": "#/$defs/hash" },
+        "amount_micros": { "type": ["integer", "null"], "minimum": 1, "maximum": 100000 }
       }
     },
     "claimAssessment": {
@@ -267,7 +288,7 @@
     "receipt": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "algorithm", "canonicalization", "scope", "root_hash", "qarinah_head_hash", "telegraph_signal_hashes"],
+      "required": ["schema_version", "algorithm", "canonicalization", "scope", "root_hash", "qarinah_head_hash", "telegraph_signal_hashes", "integrity"],
       "properties": {
         "schema_version": { "const": "proofgate.receipt.v1" },
         "algorithm": { "const": "SHA-256" },
@@ -280,6 +301,16 @@
           "maxItems": 3,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/signalHash" }
+        },
+        "integrity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "authenticity", "transferable_authorization"],
+          "properties": {
+            "status": { "const": "self_hash_consistent" },
+            "authenticity": { "const": "unsigned" },
+            "transferable_authorization": { "const": false }
+          }
         }
       }
     },

@@ -92,8 +92,10 @@ export function createProofGateChain(input: CreateProofGateChainInput): ProofGat
       signal: {
         signal_hash: signal.signal_hash,
         signal_verified: signal.signal_verified,
+        signal_verification: signal.signal_verification,
         result_hash: signal.result_hash,
         payment_response_hash: signal.payment_response_hash,
+        payment_settlement: signal.payment_settlement,
         miner_id: signal.miner_id,
         miner_slug: signal.miner_slug,
         rank_at_request: signal.rank_at_request,
@@ -105,9 +107,9 @@ export function createProofGateChain(input: CreateProofGateChainInput): ProofGat
         stance: signal.stance,
         confidence: signal.confidence,
       },
-      trust_boundary: "telegraph-output-is-data-until-signal-verification-and-policy-evaluation",
+      trust_boundary: "telegraph-output-is-data-until-node-attestation-binding-and-policy-evaluation",
     },
-    confidence: signal.signal_verified ? "verified" : "claimed",
+    confidence: signal.signal_verified ? "extracted" : "claimed",
     relations: [{ type: "derived_from", target: request.eventId }],
     disclosure: { scopes: ["proofgate", "telegraph", "evidence"], classification: "public" },
     provenance: { adapter: "proofgate/telegraph", sourceId: signal.signal_hash },
@@ -166,4 +168,3 @@ export function validateProofGateChain(chain: ProofGateQarinahChain): QarinahEve
   if (previousHash !== chain.head_hash) throw new TypeError("ProofGate chain head is inconsistent.");
   return events;
 }
-

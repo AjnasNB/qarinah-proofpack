@@ -179,6 +179,13 @@ describe("canonical ProofPack primitives", () => {
     expect(() => canonicalJson(circular)).toThrow(/circular/);
   });
 
+  it("commits prototype-looking JSON keys instead of dropping them", () => {
+    const untrusted = JSON.parse('{"x":1,"__proto__":{"polluted":true},"constructor":"data"}') as unknown;
+    expect(canonicalJson(untrusted)).toBe('{"__proto__":{"polluted":true},"constructor":"data","x":1}');
+    expect(hashCanonical(untrusted)).not.toBe(hashCanonical({ constructor: "data", x: 1 }));
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  });
+
   it("canonicalizes web URLs conservatively and deterministically", () => {
     expect(canonicalizeUrl("HTTPS://Example.COM:443/a?z=2&utm_medium=x&a=3#fragment"))
       .toBe("https://example.com/a?a=3&z=2");

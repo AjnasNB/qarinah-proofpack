@@ -48,7 +48,9 @@ function normalizeJson(value: unknown, path: string, ancestors: WeakSet<object>)
     }
 
     const record = value as Record<string, unknown>;
-    const normalized: Record<string, CanonicalJsonValue> = {};
+    // A null-prototype object preserves every legal JSON key, including
+    // `__proto__`, instead of invoking Object.prototype's legacy setter.
+    const normalized = Object.create(null) as Record<string, CanonicalJsonValue>;
     for (const key of Object.keys(record).sort()) {
       normalized[key] = normalizeJson(record[key], `${path}.${key}`, ancestors);
     }

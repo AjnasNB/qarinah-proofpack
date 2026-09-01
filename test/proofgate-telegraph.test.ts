@@ -8,6 +8,7 @@ import {
   selectCappedBaseSepoliaPayment,
   selectDirectMiners,
   TelegraphHttpClient,
+  validatePaymentSettlement,
 } from "@/lib/proofgate/telegraph";
 import type { PaymentRequirements } from "@x402/fetch";
 import type { TelegraphMiner } from "@/lib/proofgate/types";
@@ -51,6 +52,29 @@ describe("Telegraph discovery and normalization", () => {
     })).toThrow(/between 1 and 100000/);
   });
 
+  it("accepts only successful, capped Base Sepolia settlement receipts from the payer", () => {
+    const payer = `0x${"1".repeat(40)}`;
+    const encode = (value: unknown) => Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+    const settlement = {
+      success: true,
+      network: "eip155:84532",
+      transaction: `0x${"a".repeat(64)}`,
+      payer,
+      amount: "10000",
+    };
+    expect(validatePaymentSettlement(encode(settlement), payer, 50_000n)).toMatchObject({
+      network: "eip155:84532",
+      transaction: settlement.transaction,
+      amount_micros: 10_000,
+    });
+    expect(() => validatePaymentSettlement(encode({ ...settlement, success: false }), payer, 50_000n)).toThrow(/valid successful/);
+    expect(() => validatePaymentSettlement(encode({ ...settlement, payer: `0x${"2".repeat(40)}` }), payer, 50_000n)).toThrow(/valid successful/);
+    expect(() => validatePaymentSettlement(encode({ ...settlement, amount: "50001" }), payer, 50_000n)).toThrow(/settlement amount/);
+    expect(() => validatePaymentSettlement(encode(settlement), payer, 50_000n, 20_000n)).toThrow(/accepted x402 challenge/);
+    expect(validatePaymentSettlement(encode({ ...settlement, amount: undefined }), payer, 50_000n, 10_000n).amount_micros).toBe(10_000);
+    expect(() => validatePaymentSettlement("not-base64", payer, 50_000n)).toThrow(/malformed/);
+  });
+
   it("parses catalog data and plans direct calls from declared schema rather than IDs", () => {
     const parsed = parseMinerCatalog([{
       id: "dynamic-91",
@@ -63,7 +87,7 @@ describe("Telegraph discovery and normalization", () => {
       activation_status: "active",
     }]);
     expect(parsed).toHaveLength(1);
-    expect(buildDirectRequest(parsed[0], "Is the claim true?")).toEqual({
+    expect(buildDirectRequest(parsed[0], "FACT_CHECK", "Is the claim true?")).toEqual({
       method: "POST",
       endpoint: "/search",
       payload: { question: "Is the claim true?" },
@@ -80,10 +104,35 @@ describe("Telegraph discovery and normalization", () => {
         required: ["query", "api_token"],
       },
     };
-    expect(buildDirectRequest(missing, "claim")).toBeNull();
-    expect(buildDirectRequest(required, "claim")).toBeNull();
-    expect(buildDirectRequest({ ...miner("3", "network-path", "FACT_CHECK", 3), endpoints: [{ path: "//attacker.test", method: "POST" }] }, "claim")).toBeNull();
-    expect(buildDirectRequest({ ...miner("4", "dot-path", "FACT_CHECK", 4), endpoints: [{ path: "/safe/../admin", method: "POST" }] }, "claim")).toBeNull();
+    expect(buildDirectRequest(missing, "FACT_CHECK", "claim")).toBeNull();
+    expect(buildDirectRequest(required, "FACT_CHECK", "claim")).toBeNull();
+    expect(buildDirectRequest({ ...miner("3", "network-path", "FACT_CHECK", 3), endpoints: [{ path: "//attacker.test", method: "POST" }] }, "FACT_CHECK", "claim")).toBeNull();
+    expect(buildDirectRequest({ ...miner("4", "dot-path", "FACT_CHECK", 4), endpoints: [{ path: "/safe/../admin", method: "POST" }] }, "FACT_CHECK", "claim")).toBeNull();
+  });
+
+  it("selects an intent-specific operation from a multi-endpoint miner", () => {
+    const liveCertStyle = {
+      ...miner("4433", "livecert", "FACT_CHECK", 1),
+      endpoints: [
+        { path: "/ssl-check", method: "POST", description: "Inspect a domain certificate." },
+        { path: "/dns-check", method: "POST", description: "Inspect DNS records." },
+        { path: "/fact-check", method: "POST", description: "Fact-check a specific claim." },
+      ],
+    };
+    expect(buildDirectRequest(liveCertStyle, "FACT_CHECK", "The telescope launched in 2021.")).toEqual({
+      method: "POST",
+      endpoint: "/fact-check",
+      payload: { query: "The telescope launched in 2021." },
+    });
+
+    const ambiguous = {
+      ...miner("ambiguous", "ambiguous", "FACT_CHECK", 2),
+      endpoints: [
+        { path: "/lookup-a", method: "POST" },
+        { path: "/lookup-b", method: "POST" },
+      ],
+    };
+    expect(buildDirectRequest(ambiguous, "FACT_CHECK", "claim")).toBeNull();
   });
 
   it("selects current, distinct miners by live rank across the two supported intents", () => {
@@ -152,6 +201,12 @@ describe("Telegraph discovery and normalization", () => {
         intent: "FACT_CHECK",
         signal_hash: signalHash,
         payment_response: "settlement-proof",
+        payment_settlement: {
+          network: "eip155:84532",
+          transaction: `0x${"1".repeat(64)}`,
+          payer_hash: `sha256:${"b".repeat(64)}`,
+          amount_micros: 10_000,
+        },
       },
       lookup: {
         signal_hash: signalHash,

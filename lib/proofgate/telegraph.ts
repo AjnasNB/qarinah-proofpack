@@ -1,6 +1,8 @@
-import { wrapFetchWithPayment, x402Client, type PaymentRequirements } from "@x402/fetch";
+import { decodePaymentResponseHeader, wrapFetchWithPayment, x402Client, type PaymentRequirements } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
+
+import { hashText } from "@/lib/proof/canonical";
 
 import type {
   TelegraphAskResult,
@@ -18,8 +20,14 @@ const BASE_SEPOLIA = "eip155:84532" as const;
 const BASE_SEPOLIA_USDC = "0x036cbd53842c5426634e7929541ec2318f3dcf7e";
 const ABSOLUTE_PAYMENT_CAP_USDC_MICROS = 100_000n;
 const MAX_EXTERNAL_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_EXTERNAL_JSON_DEPTH = 64;
+const MAX_EXTERNAL_JSON_NODES = 20_000;
+const MAX_EXTERNAL_JSON_KEYS = 20_000;
+const MAX_EXTERNAL_STRING_CHARS = 1_000_000;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const SIGNAL_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+const TRANSACTION_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const TEXT_INPUT_FIELDS = ["query", "question", "claim", "statement", "topic", "prompt", "text"] as const;
 const EMPLOYMENT_ENDPOINT_PATTERN = /(?:^|[-_/])(job|jobs|career|careers|resume|cv|hiring|recruit|tailor)(?:$|[-_/])/i;
 const EMPLOYMENT_CAPABILITY_PATTERNS = [
@@ -179,17 +187,59 @@ export interface DirectRequestPlan {
   payload: Record<string, unknown>;
 }
 
+const INTENT_ENDPOINT_HINTS: Record<TelegraphIntent, readonly RegExp[]> = {
+  FACT_CHECK: [
+    /(?:^|[-_/])fact[-_ ]?check(?:$|[-_/])/i,
+    /\b(?:fact[- ]?check|check (?:a |the )?claim|verify (?:a |the )?claim)\b/i,
+    /(?:^|[-_/])(?:claim[-_ ]?check|verify[-_ ]?claim|proof)(?:$|[-_/])/i,
+    /(?:^|[-_/])search(?:$|[-_/])/i,
+  ],
+  RESEARCH_SYNTHESIS: [
+    /(?:^|[-_/])research[-_ ]?synthesis(?:$|[-_/])/i,
+    /\b(?:research synthesis|source[- ]?backed synthesis|evidence synthesis)\b/i,
+    /(?:^|[-_/])(?:synthesis|research|proof)(?:$|[-_/])/i,
+    /(?:^|[-_/])search(?:$|[-_/])/i,
+  ],
+};
+
+function endpointForIntent(
+  miner: TelegraphMiner,
+  intent: TelegraphIntent,
+): TelegraphMinerEndpoint | null {
+  const safe = miner.endpoints.filter((candidate) => {
+    const method = candidate.method.toUpperCase();
+    return (method === "GET" || method === "POST") && isSafeEndpointPath(candidate.path);
+  });
+  if (safe.length === 1) return safe[0];
+
+  const ranked = safe
+    .map((endpoint) => {
+      const text = `${endpoint.path}\n${endpoint.description ?? ""}`;
+      const firstMatch = INTENT_ENDPOINT_HINTS[intent].findIndex((pattern) => pattern.test(text));
+      return { endpoint, score: firstMatch === -1 ? 0 : INTENT_ENDPOINT_HINTS[intent].length - firstMatch };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.endpoint.path.localeCompare(right.endpoint.path));
+
+  const best = ranked[0];
+  const runnerUp = ranked[1];
+  // Multiple declared operations are not interchangeable. If their intent fit
+  // is tied, fail closed instead of paying for a guessed operation.
+  return best && best.score !== runnerUp?.score ? best.endpoint : null;
+}
+
 /** Returns null instead of guessing when a miner does not declare a safe text input. */
-export function buildDirectRequest(miner: TelegraphMiner, query: string): DirectRequestPlan | null {
+export function buildDirectRequest(
+  miner: TelegraphMiner,
+  intent: TelegraphIntent,
+  query: string,
+): DirectRequestPlan | null {
   const textField = textFieldFor(miner.input_schema);
   if (!textField) return null;
   const required = new Set(miner.input_schema?.required ?? []);
   if ([...required].some((field) => field !== textField)) return null;
 
-  const endpoint = miner.endpoints.find((candidate) => {
-    const method = candidate.method.toUpperCase();
-    return (method === "GET" || method === "POST") && isSafeEndpointPath(candidate.path);
-  });
+  const endpoint = endpointForIntent(miner, intent);
   if (!endpoint) return null;
 
   const payload: Record<string, unknown> = { [textField]: query };
@@ -207,7 +257,7 @@ export function buildDirectRequest(miner: TelegraphMiner, query: string): Direct
 export function isViableMiner(miner: TelegraphMiner, intent: TelegraphIntent): boolean {
   return miner.activation_status.toLowerCase() === "active"
     && miner.supported_intents.includes(intent)
-    && buildDirectRequest(miner, "viability check") !== null;
+    && buildDirectRequest(miner, intent, "viability check") !== null;
 }
 
 /**
@@ -300,13 +350,103 @@ async function readBoundedJson(response: Response): Promise<unknown> {
     offset += chunk.byteLength;
   }
   try {
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    const parsed: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    assertExternalJsonComplexity(parsed);
+    return parsed;
   } catch {
     throw new TelegraphClientError("INVALID_RESPONSE", "Telegraph returned invalid JSON.", response.status);
   }
 }
 
-function parseAskResult(value: unknown, paymentResponse: string | null): TelegraphAskResult {
+function assertExternalJsonComplexity(value: unknown): void {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  let nodes = 0;
+  let keys = 0;
+  let stringChars = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) break;
+    nodes += 1;
+    if (nodes > MAX_EXTERNAL_JSON_NODES || current.depth > MAX_EXTERNAL_JSON_DEPTH) {
+      throw new TelegraphClientError("INVALID_RESPONSE", "Telegraph JSON exceeded structural complexity limits.");
+    }
+    if (typeof current.value === "string") {
+      stringChars += current.value.length;
+      if (stringChars > MAX_EXTERNAL_STRING_CHARS) {
+        throw new TelegraphClientError("INVALID_RESPONSE", "Telegraph JSON exceeded string complexity limits.");
+      }
+    } else if (Array.isArray(current.value)) {
+      for (const child of current.value) stack.push({ value: child, depth: current.depth + 1 });
+    } else {
+      const record = asRecord(current.value);
+      if (!record) continue;
+      const entries = Object.entries(record);
+      keys += entries.length;
+      if (keys > MAX_EXTERNAL_JSON_KEYS) {
+        throw new TelegraphClientError("INVALID_RESPONSE", "Telegraph JSON exceeded key complexity limits.");
+      }
+      for (const [key, child] of entries) {
+        stringChars += key.length;
+        stack.push({ value: child, depth: current.depth + 1 });
+      }
+    }
+  }
+}
+
+type PaymentSettlement = NonNullable<TelegraphAskResult["payment_settlement"]>;
+
+export function validatePaymentSettlement(
+  paymentResponse: string,
+  expectedPayer: string,
+  maximumMicros: bigint,
+  expectedMicros?: bigint,
+): PaymentSettlement {
+  let decoded: unknown;
+  try {
+    decoded = decodePaymentResponseHeader(paymentResponse);
+  } catch {
+    throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph returned a malformed x402 settlement header.");
+  }
+  const record = asRecord(decoded);
+  const payer = boundedString(record?.payer, 64);
+  const transaction = boundedString(record?.transaction, 128);
+  if (!record
+    || record.success !== true
+    || record.network !== BASE_SEPOLIA
+    || !payer
+    || !ADDRESS_PATTERN.test(payer)
+    || payer.toLowerCase() !== expectedPayer.toLowerCase()
+    || !transaction
+    || !TRANSACTION_HASH_PATTERN.test(transaction)) {
+    throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph did not return a valid successful Base Sepolia x402 settlement.");
+  }
+  let settledAmount: bigint | null = null;
+  if (record.amount !== undefined) {
+    try {
+      const amount = BigInt(String(record.amount));
+      if (amount < 1n || amount > maximumMicros || amount > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("out of range");
+      settledAmount = amount;
+    } catch {
+      throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph returned an invalid x402 settlement amount.");
+    }
+  }
+  if (expectedMicros !== undefined && settledAmount !== null && settledAmount !== expectedMicros) {
+    throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph settlement amount did not match the accepted x402 challenge.");
+  }
+  const authoritativeAmount = settledAmount ?? expectedMicros ?? null;
+  return {
+    network: BASE_SEPOLIA,
+    transaction: transaction.toLowerCase() as `0x${string}`,
+    payer_hash: hashText(payer.toLowerCase()),
+    amount_micros: authoritativeAmount === null ? null : Number(authoritativeAmount),
+  };
+}
+
+function parseAskResult(
+  value: unknown,
+  paymentResponse: string,
+  paymentSettlement: PaymentSettlement,
+): TelegraphAskResult {
   const record = asRecord(value);
   const minerId = boundedString(record?.miner_id, 256);
   const minerName = boundedString(record?.miner_name, 256);
@@ -326,6 +466,7 @@ function parseAskResult(value: unknown, paymentResponse: string | null): Telegra
     ...(typeof record.signal_hash === "string" ? { signal_hash: record.signal_hash } : {}),
     ...(Array.isArray(record.warnings) ? { warnings: record.warnings } : {}),
     payment_response: paymentResponse,
+    payment_settlement: paymentSettlement,
   };
 }
 
@@ -337,6 +478,12 @@ function normalizeNodeUrl(value: string | undefined): string {
   parsed.pathname = parsed.pathname.replace(/\/$/, "");
   parsed.search = "";
   parsed.hash = "";
+  const officialOrigin = new URL(DEFAULT_NODE_URL).origin;
+  if (process.env.NODE_ENV === "production"
+    && parsed.origin !== officialOrigin
+    && process.env.TELEGRAPH_ALLOW_CUSTOM_NODE !== "true") {
+    throw new TelegraphClientError("NOT_CONFIGURED", "Production Telegraph calls are pinned to the official node origin.");
+  }
   return parsed.toString().replace(/\/$/, "");
 }
 
@@ -371,12 +518,6 @@ export function selectCappedBaseSepoliaPayment(
   return selected;
 }
 
-function paymentCapSelector(maximumMicros: bigint) {
-  return (_version: number, requirements: PaymentRequirements[]): PaymentRequirements => {
-    return selectCappedBaseSepoliaPayment(requirements, maximumMicros);
-  };
-}
-
 export interface TelegraphHttpClientOptions {
   nodeUrl?: string;
   privateKey?: string;
@@ -389,12 +530,17 @@ export class TelegraphHttpClient implements TelegraphClient {
   private readonly nodeUrl: string;
   private readonly plainFetch: typeof globalThis.fetch;
   private readonly paidFetch: typeof globalThis.fetch | null;
+  private readonly payerAddress: string | null;
+  private readonly maximumPaymentMicros: bigint;
+  private pendingPaymentMicros: bigint | null = null;
 
   constructor(options: TelegraphHttpClientOptions = {}) {
     this.nodeUrl = normalizeNodeUrl(options.nodeUrl ?? process.env.TELEGRAPH_NODE_URL);
     this.plainFetch = options.fetchImpl ?? globalThis.fetch;
     const privateKey = options.privateKey ?? process.env.TELEGRAPH_EVM_PRIVATE_KEY ?? "";
     this.configured = PRIVATE_KEY_PATTERN.test(privateKey);
+    this.payerAddress = null;
+    this.maximumPaymentMicros = 0n;
     if (!this.configured) {
       this.paidFetch = null;
       return;
@@ -402,6 +548,7 @@ export class TelegraphHttpClient implements TelegraphClient {
 
     const maximumMicros = options.maximumPaymentMicros
       ?? BigInt(process.env.TELEGRAPH_MAX_PAYMENT_USDC_MICROS || "50000");
+    this.maximumPaymentMicros = maximumMicros;
     if (maximumMicros < 1n || maximumMicros > ABSOLUTE_PAYMENT_CAP_USDC_MICROS) {
       throw new TelegraphClientError(
         "NOT_CONFIGURED",
@@ -409,7 +556,12 @@ export class TelegraphHttpClient implements TelegraphClient {
       );
     }
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const client = new x402Client(paymentCapSelector(maximumMicros));
+    this.payerAddress = account.address;
+    const client = new x402Client((_version, requirements) => {
+      const selected = selectCappedBaseSepoliaPayment(requirements, maximumMicros);
+      this.pendingPaymentMicros = BigInt(selected.amount);
+      return selected;
+    });
     registerExactEvmScheme(client, { signer: account, networks: [BASE_SEPOLIA] });
     this.paidFetch = wrapFetchWithPayment(this.plainFetch, client);
   }
@@ -446,11 +598,11 @@ export class TelegraphHttpClient implements TelegraphClient {
 
   async askDirect(
     miner: TelegraphMiner,
-    _intent: TelegraphIntent,
+    intent: TelegraphIntent,
     query: string,
     options: { signal?: AbortSignal } = {},
   ): Promise<TelegraphAskResult> {
-    const plan = buildDirectRequest(miner, query);
+    const plan = buildDirectRequest(miner, intent, query);
     if (!plan) throw new TelegraphClientError("NO_VIABLE_MINER", `Miner ${miner.slug} has no safely constructible request.`);
     const result = await this.ask(`${this.nodeUrl}/engine/v1/ask/${encodeURIComponent(miner.id)}`, {
       method: plan.method,
@@ -494,6 +646,7 @@ export class TelegraphHttpClient implements TelegraphClient {
     }
     let response: Response;
     try {
+      this.pendingPaymentMicros = null;
       response = await this.paidFetch(url, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -505,7 +658,7 @@ export class TelegraphHttpClient implements TelegraphClient {
       if (error instanceof TelegraphClientError) throw error;
       throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph x402 payment or request execution failed safely.");
     }
-    const paymentResponse = response.headers.get("payment-response");
+    const paymentResponse = response.headers.get("payment-response") ?? response.headers.get("x-payment-response");
     const value = await readBoundedJson(response);
     if (!response.ok) {
       const record = asRecord(value);
@@ -513,7 +666,14 @@ export class TelegraphHttpClient implements TelegraphClient {
       const code = response.status === 402 ? "PAYMENT_FAILED" : "REQUEST_FAILED";
       throw new TelegraphClientError(code, `Telegraph ask returned HTTP ${response.status}.${detail}`.slice(0, 300), response.status);
     }
-    return parseAskResult(value, paymentResponse);
+    if (!paymentResponse || !this.payerAddress || this.pendingPaymentMicros === null) {
+      throw new TelegraphClientError("PAYMENT_FAILED", "Telegraph returned success without a verifiable x402 settlement header.", response.status);
+    }
+    return parseAskResult(
+      value,
+      paymentResponse,
+      validatePaymentSettlement(paymentResponse, this.payerAddress, this.maximumPaymentMicros, this.pendingPaymentMicros),
+    );
   }
 }
 

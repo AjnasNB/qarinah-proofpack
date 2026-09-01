@@ -190,10 +190,10 @@ function evaluateRules(input: {
   const alignedMappedMiners = Math.max(mappedSupportingMiners, mappedRefutingMiners);
   return [
     rule("TELEGRAPH_CONFIGURED", "Telegraph x402 payer is configured", configured, configured, true),
-    rule("VERIFIED_AUTO_FACT_CHECK", "A real auto-routed FACT_CHECK signal is verified", verifiedAutoFact, verifiedAutoFact, true),
+    rule("VERIFIED_AUTO_FACT_CHECK", "A real auto-routed FACT_CHECK signal is Telegraph-node-attested", verifiedAutoFact, verifiedAutoFact, true),
     rule("NO_PARTIAL_FAILURES", "No Telegraph call or verification failed", !partialFailure, !partialFailure, true),
     rule("POLICY_FULLY_COMPILED", "Every policy clause is understood", policy.unsupported_clauses.length === 0, policy.unsupported_clauses.length, 0),
-    rule("MIN_VERIFIED_SIGNALS", "Verified Telegraph signals meet the minimum", aggregate.verified_signals >= policy.min_verified_signals, aggregate.verified_signals, policy.min_verified_signals),
+    rule("MIN_VERIFIED_SIGNALS", "Telegraph-node-attested signals meet the minimum", aggregate.verified_signals >= policy.min_verified_signals, aggregate.verified_signals, policy.min_verified_signals),
     rule("MIN_DISTINCT_MINERS", "Distinct verified miners meet the minimum", aggregate.distinct_miners >= policy.min_distinct_miners, aggregate.distinct_miners, policy.min_distinct_miners),
     rule("PROVIDER_CONFIDENCE_COVERAGE", "Enough distinct aligned miners map provider confidence", alignedMappedMiners >= policy.min_supporting_signals, alignedMappedMiners, policy.min_supporting_signals),
     rule("MIN_CONFIDENCE", "Miner-declared confidence meets the minimum", aggregate.confidence !== null && aggregate.confidence >= policy.min_confidence, aggregate.confidence, policy.min_confidence),
@@ -273,11 +273,11 @@ function authorizeWithMaqam(input: {
 
 function explain(decision: PreflightDecision, codes: string[]): string {
   if (decision === "ALLOW") {
-    return "Authorization issued: every hard evidence rule passed using verified Telegraph signals from distinct miners.";
+    return "Authorization issued: every hard evidence rule passed using settled, Telegraph-node-attested signals from distinct miners.";
   }
   if (decision === "BLOCK") {
     return codes.includes("CREDIBLE_REFUTATION")
-      ? "Action blocked: multiple verified Telegraph signals credibly refute a required claim."
+      ? "Action blocked: multiple settled, Telegraph-node-attested signals credibly refute a required claim."
       : "Action blocked: the compiled policy treats the verified evidence conflict as disqualifying.";
   }
   if (codes.includes("TELEGRAPH_NOT_CONFIGURED") || codes.includes("TELEGRAPH_CONFIGURED")) {
@@ -386,9 +386,10 @@ export async function buildPreflight(
   operational.telegraph_configured = client?.configured === true;
 
   if (claims.length === 0) operationalCodes.push("NO_CHECKABLE_CLAIMS");
+  if (policy.unsupported_clauses.length > 0) operationalCodes.push("POLICY_UNSUPPORTED_BEFORE_PAYMENT");
   if (!operational.telegraph_configured || !client) {
     operationalCodes.push("TELEGRAPH_NOT_CONFIGURED");
-  } else if (claims.length > 0 && maximumPaidCalls > 0) {
+  } else if (claims.length > 0 && policy.unsupported_clauses.length === 0 && maximumPaidCalls > 0) {
     let miners: TelegraphMiner[] = [];
     try {
       miners = await client.discoverMiners({ signal: options.signal });
@@ -397,7 +398,7 @@ export async function buildPreflight(
     }
 
     if (miners.length > 0) {
-      const query = buildFactCheckQuery(claims);
+      const query = buildFactCheckQuery(claims, id);
       const excluded = new Set<string>();
       let autoVerified = false;
       operational.paid_calls_attempted += 1;
@@ -565,6 +566,11 @@ export async function buildPreflight(
       root_hash: hashCanonical(payload),
       qarinah_head_hash: qarinah.head_hash,
       telegraph_signal_hashes: uniqueSignals.map((signal) => signal.signal_hash),
+      integrity: {
+        status: "self_hash_consistent",
+        authenticity: "unsigned",
+        transferable_authorization: false,
+      },
     },
   };
 }
@@ -581,6 +587,9 @@ export function verifyPreflightReceipt(response: PreflightResponse): boolean {
       && receipt.algorithm === "SHA-256"
       && receipt.canonicalization === "proofgate.canonical-json.v1"
       && receipt.scope === "preflight-without-receipt"
+      && receipt.integrity.status === "self_hash_consistent"
+      && receipt.integrity.authenticity === "unsigned"
+      && receipt.integrity.transferable_authorization === false
       && exactSignalHashes
       && receipt.qarinah_head_hash === payload.qarinah.head_hash
       && hashCanonical(payload) === receipt.root_hash;

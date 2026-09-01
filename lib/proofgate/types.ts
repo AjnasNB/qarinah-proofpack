@@ -55,13 +55,24 @@ export interface TelegraphSignalReceipt {
   cost_usd: number | null;
   timestamp: string | null;
   signal_hash: `0x${string}`;
+  /** Official-node attestation bound to this exact query/miner/intent/result; not an independently recomputed Telegraph hash. */
   signal_verified: boolean;
   signal_verification: {
+    status: "node_attested" | "rejected";
+    authority: "telegraph-node";
+    scope: "exact-query-miner-intent-result";
+    locally_recomputed: false;
     algorithm: string | null;
     commitment: string | null;
     checked_at: string;
   };
   payment_response_hash: Sha256Hash | null;
+  payment_settlement: {
+    network: "eip155:84532";
+    transaction: `0x${string}`;
+    payer_hash: Sha256Hash;
+    amount_micros: number | null;
+  } | null;
   result_hash: Sha256Hash;
   signal_mapping: {
     confidence_field: string | null;
@@ -123,6 +134,11 @@ export interface PreflightReceipt {
   root_hash: Sha256Hash;
   qarinah_head_hash: Sha256Hash;
   telegraph_signal_hashes: `0x${string}`[];
+  integrity: {
+    status: "self_hash_consistent";
+    authenticity: "unsigned";
+    transferable_authorization: false;
+  };
 }
 
 export interface PreflightOperationalStatus {
@@ -205,6 +221,12 @@ export interface TelegraphAskResult {
   signal_hash?: string;
   warnings?: unknown[];
   payment_response?: string | null;
+  payment_settlement?: {
+    network: "eip155:84532";
+    transaction: `0x${string}`;
+    payer_hash: Sha256Hash;
+    amount_micros: number | null;
+  };
 }
 
 export interface TelegraphSignalLookup {
