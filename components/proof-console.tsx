@@ -12,7 +12,8 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { ProofIntent, ProofPack } from "@/lib/proof/types";
 
@@ -32,13 +33,23 @@ function shortHash(value: string) {
 }
 
 export function ProofConsole() {
+  const router = useRouter();
   const [query, setQuery] = useState(examples[0].query);
   const [intent, setIntent] = useState<ProofIntent>("FACT_CHECK");
   const [pack, setPack] = useState<ProofPack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showAllEvidence, setShowAllEvidence] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!loading) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1_000);
+    return () => window.clearInterval(timer);
+  }, [loading]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +57,8 @@ export function ProofConsole() {
     setLoading(true);
     setError(null);
     setPack(null);
+    setElapsed(0);
+    setShowAllEvidence(false);
 
     try {
       const response = await fetch("/v1/proof", {
@@ -83,6 +96,12 @@ export function ProofConsole() {
     anchor.download = `${pack.pack_id}.json`;
     anchor.click();
     URL.revokeObjectURL(href);
+  }
+
+  function verifyPack() {
+    if (!pack) return;
+    sessionStorage.setItem("qarinah.proofpack.pending-verification", JSON.stringify(pack));
+    router.push("/verify?source=proofpack");
   }
 
   return (
@@ -143,9 +162,9 @@ export function ProofConsole() {
         )}
         {loading && (
           <div className="research-progress">
-            <div className="progress-head"><span>ACQUISITION IN PROGRESS</span><span>LIVE WEB</span></div>
-            <div className="progress-track"><motion.i initial={{ width: "4%" }} animate={{ width: "82%" }} transition={{ duration: reduceMotion ? 0 : 18, ease: "easeOut" }} /></div>
-            <p>Searching, crawling, extracting, scoring, applying policy, and sealing provenance.</p>
+            <div className="progress-head"><span>ACQUISITION IN PROGRESS</span><span>{elapsed}s · LIVE WEB</span></div>
+            <div className="progress-track"><motion.i initial={reduceMotion ? false : { x: "-110%" }} animate={reduceMotion ? undefined : { x: "280%" }} transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }} /></div>
+            <p>Searching and crawling live sources; extraction, scoring, policy, and provenance sealing follow.</p>
           </div>
         )}
         {error && (
@@ -181,9 +200,9 @@ export function ProofConsole() {
               <p className="result-reason">{pack.reason}</p>
 
               <details className="evidence-details" open>
-                <summary>Evidence records <span>{pack.evidence.length}</span></summary>
+                <summary>Evidence records <span>{showAllEvidence ? `Showing all ${pack.evidence.length}` : `Showing ${Math.min(4, pack.evidence.length)} of ${pack.evidence.length}`}</span></summary>
                 <div className="evidence-records">
-                  {pack.evidence.slice(0, 4).map((item) => (
+                  {(showAllEvidence ? pack.evidence : pack.evidence.slice(0, 4)).map((item) => (
                     <article key={item.id}>
                       <div><code>{item.id}</code><span className={`stance stance-${item.stance.toLowerCase()}`}>{item.stance}</span></div>
                       <a href={item.url} target="_blank" rel="noreferrer">
@@ -191,10 +210,16 @@ export function ProofConsole() {
                         <ArrowSquareOut size={14} aria-hidden="true" />
                       </a>
                       <p>{item.excerpt}</p>
+                      <div className="evidence-meta"><span>{item.source_domain}</span><time dateTime={item.retrieved_at}>{new Date(item.retrieved_at).toISOString().slice(0, 10)} UTC</time></div>
                       <code title={item.content_hash}>{shortHash(item.content_hash)}</code>
                     </article>
                   ))}
                 </div>
+                {pack.evidence.length > 4 && (
+                  <button className="evidence-show-all" type="button" onClick={() => setShowAllEvidence((current) => !current)}>
+                    {showAllEvidence ? "Show first 4" : `Show all ${pack.evidence.length} records`}
+                  </button>
+                )}
               </details>
 
               <div className="seal-row">
@@ -207,6 +232,9 @@ export function ProofConsole() {
                 </button>
                 <button type="button" onClick={downloadPack} title="Download ProofPack JSON" aria-label="Download ProofPack JSON">
                   <DownloadSimple size={18} />
+                </button>
+                <button type="button" onClick={verifyPack} title="Verify this ProofPack" aria-label="Verify this ProofPack">
+                  <ShieldCheck size={18} />
                 </button>
               </div>
             </motion.div>

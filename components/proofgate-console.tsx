@@ -5,13 +5,15 @@ import {
   CheckCircle,
   DownloadSimple,
   HourglassMedium,
+  Key,
+  MinusCircle,
   Play,
   ShieldCheck,
   Warning,
   XCircle,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { PreflightResponse } from "@/lib/proofgate/types";
 
@@ -50,6 +52,25 @@ function decisionIcon(decision: PreflightResponse["decision"]) {
   return <Warning size={28} weight="fill" aria-hidden="true" />;
 }
 
+type RuntimeMode = "checking" | "safety-mode" | "payer-locked" | "x402-ready";
+
+interface HealthPayload {
+  surfaces?: {
+    preflight?: {
+      runtime_mode?: RuntimeMode;
+      access_required?: boolean;
+      note?: string;
+    };
+  };
+}
+
+function ruleStatus(rule: PreflightResponse["rules"][number], result: PreflightResponse) {
+  const alwaysRuns = new Set(["TELEGRAPH_CONFIGURED", "POLICY_FULLY_COMPILED"]);
+  const notRun = (result.operational.paid_calls_attempted === 0 && !alwaysRuns.has(rule.id))
+    || (rule.id === "MAQAM_AUTHORIZATION_BOUNDARY" && String(rule.actual).startsWith("not_"));
+  return notRun ? "not-run" as const : rule.passed ? "passed" as const : "failed" as const;
+}
+
 export function ProofGateConsole() {
   const [action, setAction] = useState(examples[0].action);
   const [policy, setPolicy] = useState(DEFAULT_POLICY);
@@ -57,7 +78,31 @@ export function ProofGateConsole() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("checking");
+  const [runtimeNote, setRuntimeNote] = useState("Checking paid-call readiness…");
+  const [accessRequired, setAccessRequired] = useState(false);
+  const [accessKey, setAccessKey] = useState("");
+  const requestRef = useRef<{ fingerprint: string; id: string } | null>(null);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/health", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<HealthPayload> : null)
+      .then((health) => {
+        const preflight = health?.surfaces?.preflight;
+        setRuntimeMode(preflight?.runtime_mode ?? "safety-mode");
+        setAccessRequired(preflight?.access_required === true);
+        setRuntimeNote(preflight?.note ?? "Safety mode is active; paid calls are unavailable.");
+      })
+      .catch((caught: unknown) => {
+        if ((caught as { name?: string })?.name !== "AbortError") {
+          setRuntimeMode("safety-mode");
+          setRuntimeNote("Readiness could not be confirmed, so ProofGate will fail closed.");
+        }
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -77,10 +122,19 @@ export function ProofGateConsole() {
     setError(null);
 
     try {
+      const fingerprint = JSON.stringify([action.trim(), policy.trim()]);
+      const requestId = requestRef.current?.fingerprint === fingerprint
+        ? requestRef.current.id
+        : crypto.randomUUID();
+      requestRef.current = { fingerprint, id: requestId };
       const response = await fetch("/api/preflight", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: action.trim(), policy: policy.trim() }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": requestId,
+          ...(accessRequired && accessKey ? { "X-ProofGate-Key": accessKey } : {}),
+        },
+        body: JSON.stringify({ action: action.trim(), policy: policy.trim(), request_id: requestId }),
       });
       const payload = await response.json() as PreflightResponse | { error?: string | { message?: string } };
       if (!response.ok && !("schema_version" in payload)) {
@@ -108,11 +162,14 @@ export function ProofGateConsole() {
   }
 
   return (
-    <section className="pg-console" aria-label="ProofGate live preflight">
+    <section className="pg-console" aria-label="ProofGate preflight">
       <div className="pg-console-bar">
-        <span>LIVE PREFLIGHT</span>
+        <span className={`pg-runtime pg-runtime-${runtimeMode}`}>
+          {runtimeMode === "x402-ready" ? "GUARDED X402 READY" : runtimeMode === "payer-locked" ? "PAYER LOCKED" : runtimeMode === "checking" ? "CHECKING RUNTIME" : "SAFETY MODE"}
+        </span>
         <code>POST /api/preflight</code>
       </div>
+      <p className="pg-runtime-note">{runtimeNote}</p>
 
       <form className="pg-form" onSubmit={submit}>
         <div className="pg-field">
@@ -154,12 +211,28 @@ export function ProofGateConsole() {
           />
         </div>
 
+        {accessRequired && (
+          <div className="pg-access">
+            <label htmlFor="proofgate-access"><Key size={15} aria-hidden="true" /> Tester access key</label>
+            <input
+              id="proofgate-access"
+              type="password"
+              autoComplete="off"
+              value={accessKey}
+              onChange={(event) => setAccessKey(event.target.value)}
+              placeholder="pg_test_…"
+              required
+            />
+            <p>Paid preflights are limited to approved testers and protected by a durable global budget.</p>
+          </div>
+        )}
+
         <div className="pg-submit-row">
-          <button className="pg-run" type="submit" disabled={loading || action.trim().length < 8 || policy.trim().length < 8}>
+          <button className="pg-run" type="submit" disabled={loading || action.trim().length < 8 || policy.trim().length < 8 || (accessRequired && accessKey.length < 16)}>
             {loading ? <HourglassMedium className="spin" size={20} aria-hidden="true" /> : <Play size={19} weight="fill" aria-hidden="true" />}
-            {loading ? "Running live preflight" : "Verify with Telegraph"}
+            {loading ? "Running preflight" : runtimeMode === "x402-ready" ? "Verify with Telegraph" : "Preview fail-closed behavior"}
           </button>
-          <p>Up to 3 paid testnet calls; prices come from x402. Missing compatible mappings always escalates.</p>
+          <p>{runtimeMode === "x402-ready" ? "Up to 3 paid testnet calls; every request is budget-reserved and idempotent." : "No paid call can run in safety mode. The result must escalate without inventing evidence."}</p>
         </div>
       </form>
 
@@ -187,7 +260,7 @@ export function ProofGateConsole() {
                 transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
               />
             </div>
-            <p>Waiting for live routing, paid Miner responses, receipt verification, ProofGate policy checks, Qarinah sealing, and the final Maqam authorization boundary.</p>
+            <p>Waiting for live routing, x402 settlement, Telegraph node attestation binding, ProofGate policy checks, Qarinah sealing, and the final Maqam authorization boundary.</p>
           </div>
         )}
 
@@ -221,26 +294,41 @@ export function ProofGateConsole() {
 
               <p className="pg-reason">{result.reason}</p>
 
+              {result.reason_codes.length > 0 && result.decision !== "ALLOW" && (
+                <div className="pg-blockers" aria-label="Blocking reasons">
+                  <span>Blocking reasons</span>
+                  <div>{result.reason_codes.slice(0, 4).map((code) => <code key={code}>{code}</code>)}</div>
+                </div>
+              )}
+
+              <p className="pg-generated">Receipt generated {new Date(result.generated_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" })} UTC</p>
+
               <div className="pg-metrics">
                 <div><span>Mapped confidence mean</span><strong>{percent(result.aggregate.confidence)}</strong></div>
-                <div><span>Verified signals</span><strong>{result.aggregate.verified_signals}</strong></div>
+                <div><span>Telegraph-attested signals</span><strong>{result.aggregate.verified_signals}</strong></div>
                 <div><span>Distinct miners</span><strong>{result.aggregate.distinct_miners}</strong></div>
                 <div><span>Conflict score</span><strong>{percent(result.aggregate.conflict_score)}</strong></div>
                 <div><span>Testnet cost</span><strong>{money(result.aggregate.total_cost_usd)}</strong></div>
               </div>
 
-              <div className="pg-rule-list" aria-label="ProofGate policy results">
-                {result.rules.map((rule) => (
-                  <div key={rule.id} className={rule.passed ? "passed" : "failed"}>
-                    {rule.passed ? <CheckCircle size={18} weight="fill" aria-hidden="true" /> : <XCircle size={18} weight="fill" aria-hidden="true" />}
-                    <span>{rule.label}</span>
-                    <code>{String(rule.actual)} / {String(rule.required)}</code>
-                  </div>
-                ))}
-              </div>
+              <details className="pg-rule-audit">
+                <summary>Deterministic policy audit <span>{result.rules.filter((rule) => ruleStatus(rule, result) === "failed").length} failed</span></summary>
+                <div className="pg-rule-list" aria-label="ProofGate policy results">
+                  {result.rules.map((rule) => {
+                    const status = ruleStatus(rule, result);
+                    return (
+                      <div key={rule.id} className={status}>
+                        {status === "passed" ? <CheckCircle size={18} weight="fill" aria-hidden="true" /> : status === "failed" ? <XCircle size={18} weight="fill" aria-hidden="true" /> : <MinusCircle size={18} weight="fill" aria-hidden="true" />}
+                        <span>{rule.label}</span>
+                        <code>{status === "not-run" ? "NOT RUN" : `${String(rule.actual)} / ${String(rule.required)}`}</code>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
 
               <details className="pg-signals" open>
-                <summary>Telegraph signal receipts <span>{result.signals.length}</span></summary>
+                <summary>Telegraph signal attestations <span>{result.signals.length}</span></summary>
                 <div>
                   {result.signals.map((signal) => (
                     <article key={`${signal.miner_id}-${signal.signal_hash}`}>
@@ -257,13 +345,20 @@ export function ProofGateConsole() {
                         <div><dt>Provider confidence</dt><dd>{percent(signal.confidence)}</dd></div>
                         <div><dt>Route</dt><dd>{signal.route_mode}</dd></div>
                         <div><dt>Cost</dt><dd>{money(signal.cost_usd)}</dd></div>
+                        <div><dt>Attestation</dt><dd>{signal.signal_verification.status}</dd></div>
+                        <div><dt>Timestamp</dt><dd>{signal.timestamp ? new Date(signal.timestamp).toISOString().slice(0, 19) : "Unavailable"}</dd></div>
                       </dl>
                       <div className="pg-hash-line">
                         <code title={signal.signal_hash}>{compactHash(signal.signal_hash)}</code>
                         <a href={`https://devnode.telegraphprotocol.com/engine/v1/signal/${encodeURIComponent(signal.signal_hash)}`} target="_blank" rel="noreferrer">
-                          Verify <ArrowSquareOut size={14} aria-hidden="true" />
+                          Inspect <ArrowSquareOut size={14} aria-hidden="true" />
                         </a>
                       </div>
+                      {signal.payment_settlement && (
+                        <a className="pg-settlement" href={`https://sepolia.basescan.org/tx/${encodeURIComponent(signal.payment_settlement.transaction)}`} target="_blank" rel="noreferrer">
+                          View x402 settlement <ArrowSquareOut size={13} aria-hidden="true" />
+                        </a>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -271,7 +366,7 @@ export function ProofGateConsole() {
 
               <div className="pg-receipt">
                 <div>
-                  <span>QARINAH RECEIPT ROOT</span>
+                  <span>QARINAH INTEGRITY ROOT · UNSIGNED</span>
                   <code title={result.receipt.root_hash}>{compactHash(result.receipt.root_hash)}</code>
                 </div>
                 <button type="button" onClick={downloadReceipt}>

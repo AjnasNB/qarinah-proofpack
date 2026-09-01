@@ -7,7 +7,7 @@ import {
   WarningCircle,
   XCircle,
 } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import type { ProofVerificationResult } from "@/lib/proof/types";
 
@@ -19,6 +19,14 @@ export function VerificationConsole() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const pending = sessionStorage.getItem("qarinah.proofpack.pending-verification");
+    if (!pending) return;
+    sessionStorage.removeItem("qarinah.proofpack.pending-verification");
+    const frame = requestAnimationFrame(() => setValue(pending));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   async function chooseFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

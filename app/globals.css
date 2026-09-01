@@ -685,6 +685,7 @@ a {
 
 .progress-track i {
   display: block;
+  width: 34%;
   height: 100%;
   background: #69c99b;
 }
@@ -884,9 +885,34 @@ a {
   -webkit-line-clamp: 2;
 }
 
+.evidence-records .evidence-meta {
+  margin: 4px 0 7px;
+  color: #6f7a71;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+}
+
+.evidence-show-all {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 8px;
+  border: 1px solid #354038;
+  border-radius: 8px;
+  background: transparent;
+  color: #9fa9a1;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.evidence-show-all:hover {
+  border-color: #60806b;
+  color: #77d0a2;
+}
+
 .seal-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr repeat(3, auto);
   align-items: center;
   gap: 7px;
   margin-top: 14px;
@@ -919,8 +945,8 @@ a {
 
 .seal-row button {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border: 1px solid #354038;
   border-radius: 8px;
@@ -1382,7 +1408,8 @@ footer {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 0;
+  min-height: 40px;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   color: var(--accent);
@@ -1642,7 +1669,12 @@ footer {
   }
 
   .verify-back {
-    display: none;
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
   }
 
   .hero {
@@ -2014,6 +2046,43 @@ footer {
   letter-spacing: 0;
 }
 
+.pg-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+}
+
+.pg-runtime::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  content: "";
+}
+
+.pg-runtime-x402-ready::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.pg-runtime-payer-locked::before {
+  background: var(--danger);
+}
+
+.pg-runtime-note {
+  margin: 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .pg-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2066,6 +2135,51 @@ footer {
   outline-offset: 2px;
 }
 
+.pg-access {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 0.7fr) 1fr;
+  align-items: center;
+  grid-column: 1 / -1;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.pg-access label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.pg-access input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  outline: none;
+  background: var(--background);
+  color: var(--ink);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+}
+
+.pg-access input:focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  outline-offset: 2px;
+}
+
+.pg-access p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .pg-examples {
   display: flex;
   align-items: center;
@@ -2083,7 +2197,7 @@ footer {
 }
 
 .pg-examples button {
-  min-height: 28px;
+  min-height: 36px;
   padding: 0 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2144,7 +2258,7 @@ footer {
   max-width: 310px;
   margin: 0;
   color: var(--quiet);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
   text-align: right;
 }
@@ -2288,6 +2402,43 @@ footer {
   line-height: 1.55;
 }
 
+.pg-blockers {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 13px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 5%, transparent);
+}
+
+.pg-blockers > span {
+  flex: 0 0 auto;
+  color: var(--warning);
+  font-size: 9px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.pg-blockers > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pg-blockers code {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.pg-generated {
+  margin: 9px 0 0;
+  color: var(--quiet);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+}
+
 .pg-metrics {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -2329,6 +2480,37 @@ footer {
   margin-top: 17px;
 }
 
+.pg-rule-audit {
+  margin-top: 17px;
+  border-top: 1px solid var(--line);
+}
+
+.pg-rule-audit summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 720;
+  list-style: none;
+}
+
+.pg-rule-audit summary::-webkit-details-marker {
+  display: none;
+}
+
+.pg-rule-audit summary span {
+  color: var(--quiet);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+}
+
+.pg-rule-audit .pg-rule-list {
+  margin-top: 0;
+  padding-bottom: 6px;
+}
+
 .pg-rule-list > div {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -2344,6 +2526,14 @@ footer {
 
 .pg-rule-list > div.passed svg {
   color: var(--accent);
+}
+
+.pg-rule-list > div.not-run {
+  color: var(--quiet);
+}
+
+.pg-rule-list > div.not-run svg {
+  color: var(--quiet);
 }
 
 .pg-rule-list code {
@@ -2466,6 +2656,7 @@ footer {
 
 .pg-signals dd {
   font-family: var(--font-geist-mono), monospace;
+  overflow-wrap: anywhere;
 }
 
 .pg-hash-line {
@@ -2488,6 +2679,18 @@ footer {
   color: var(--accent);
   font-size: 8px;
   font-weight: 700;
+}
+
+.pg-settlement {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .pg-receipt {
@@ -2721,6 +2924,7 @@ footer {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 40px;
   margin-top: 22px;
   color: var(--accent);
   font-size: 12px;
@@ -2805,6 +3009,14 @@ footer {
 
   .pg-form {
     grid-template-columns: 1fr;
+  }
+
+  .pg-access {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-runtime-note {
+    padding-inline: 15px;
   }
 
   .pg-examples,
